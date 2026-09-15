@@ -88,49 +88,37 @@ A continuación se presentan las alternativas de desarrollo:
 
 ## 4. Fases del Plan de Implementación
 
-### Fase 1: Adquisición de Herramientas y Preparación
-1.  Obtener los binarios ejecutables de **FFmpeg** y **FFprobe** (mediante `winget` o descarga de binarios portátiles esenciales).
-2.  Definir el stack definitivo (.NET / C# vs Python).
-3.  Estructurar el repositorio/carpeta del proyecto.
+### Fase 1: Adquisición de Herramientas y Preparación ✅ (Completada)
+1.  **FFmpeg y FFprobe:** Instalados vía winget (`Gyan.FFmpeg.Essentials 9.0.1`) y verificados en el entorno.
+2.  **Stack tecnológico:** Seleccionado **C# (.NET 8)** con arquitectura limpia (Clean Architecture, SOLID) y WPF. SDK 8.0.425 instalado y configurado en PATH y DOTNET_ROOT.
+3.  **Estructura del repositorio:** Solución `RecortadorDeVideos.sln` creada con proyectos `Domain`, `Application`, `Infrastructure`, `UI`, `Domain.UnitTests`, `Application.UnitTests` e `Infrastructure.IntegrationTests`.
 
-### Fase 2: Módulo Core de Video y Audio (Lógica de Procesamiento)
-1.  **Análisis con `ffprobe`:**
-    *   Duración total del video.
-    *   Códecs y número de pistas de audio presentes en el archivo.
-    *   Lista de marcas de tiempo de los Keyframes (`pkt_pts_time` de frames tipo `I`).
-2.  **Operaciones de Recorte y Audio con `ffmpeg`:**
-    *   **Recorte simple (Video + Audio original):**
-        ```bash
-        ffmpeg -ss <INICIO> -to <FIN> -i video.mp4 -c copy -avoid_negative_ts make_zero salida.mp4
-        ```
-    *   **Reemplazar pista de audio:**
-        ```bash
-        ffmpeg -ss <INICIO> -to <FIN> -i video.mp4 -i nuevo_audio.mp3 -map 0:v -map 1:a -c:v copy -c:a aac -shortest salida.mp4
-        ```
-    *   **Mezclar audio original con audio de fondo:**
-        ```bash
-        ffmpeg -ss <INICIO> -to <FIN> -i video.mp4 -i musica.mp3 -filter_complex "[0:a]volume=1.0[a1];[1:a]volume=0.3[a2];[a1][a2]amix=inputs=2:duration=first[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac salida.mp4
-        ```
-    *   Manejo de rutas con espacios, sincronización y control de errores.
+### Fase 2: Módulo Core de Video y Audio (Lógica de Procesamiento) ✅ (Completada)
+1.  **Análisis con `ffprobe` (`FFmpegMediaAnalyzer`):**
+    *   Duración total, resolución, fps, códecs de audio y video.
+    *   Extracción y parseo de Keyframes/I-Frames con soporte moderno para `pts_time` y manejo de metadatos SEI.
+2.  **Operaciones con `ffmpeg` (`FFmpegVideoTrimmer` y `FFmpegAudioMuxer`):**
+    *   Recorte 100% sin pérdida con Stream Copy (`-c:v copy`).
+    *   Reemplazo de pista de audio por pista externa codificada a AAC.
+    *   Mezcla de audio (*Audio Mix*) con control de balance de volumen (`amix`).
+    *   Modo silenciado (`-an`).
+3.  **Validación y Pruebas:**
+    *   13 pruebas automatizadas pasando al 100% (7 unitarias + 6 de integración contra binarios reales de FFmpeg).
 
-### Fase 3: Interfaz Gráfica de Usuario (GUI)
+### Fase 3: Interfaz Gráfica de Usuario (GUI) 🚀 (Siguiente Fase a Continuar)
 1.  **Carga de Medios:**
-    *   Selector de archivo de video MP4 (o arrastrar y soltar).
+    *   Selector de archivo de video MP4 y soporte Drag & Drop.
     *   Selector opcional de archivo de audio secundario (`.mp3`, `.wav`, `.aac`, `.m4a`).
 2.  **Previsualización:**
-    *   Reproductor multimedia con barra de tiempo.
-    *   Controles de reproducción y salto por fotogramas.
+    *   Reproductor multimedia con barra de tiempo interactiva.
+    *   Controles de reproducción, pausa y salto por tiempo.
 3.  **Marcadores de Recorte y Configuración de Audio:**
-    *   Botones "Fijar Inicio" (`[`) y "Fijar Fin" (`]`).
-    *   Ajuste fino de milisegundos.
-    *   **Panel de Audio:**
-        *   [x] Conservar audio original.
-        *   [ ] Reemplazar por audio externo.
-        *   [ ] Mezclar (Original + Externo) con deslizador de volumen de fondo.
-        *   [ ] Silenciar video.
-4.  **Exportación:**
-    *   Selección de ruta de destino y nombre.
-    *   Ejecución y barra de progreso.
+    *   Atajos y botones "Fijar Inicio" (`[`) y "Fijar Fin" (`]`).
+    *   Ajuste fino de tiempos (HH:mm:ss.fff).
+    *   Selector de modo de audio: Conservar original, Silenciar, Reemplazar pista, Mezclar pistas con deslizador de volumen de fondo.
+4.  **Exportación y Feedback en Vivo:**
+    *   Selección de ruta y nombre de destino.
+    *   Barra de progreso en tiempo real y mensajes de estado.
 
 ### Fase 4: Funcionalidades Avanzadas (Opcional / Futuro)
 1.  **Efectos de audio:** Fundidos de entrada/salida (*Fade In* / *Fade Out*) en el audio añadido.
@@ -140,10 +128,10 @@ A continuación se presentan las alternativas de desarrollo:
 
 ---
 
-## 5. Próximo Paso para Comenzar
+## 5. Estado Actual del Proyecto y Próximo Paso
 
-Para pasar a la ejecución, se requiere confirmar:
-1.  **Elección de lenguaje/stack preferido:**
-    *   ¿Deseas hacerlo en **C# (.NET)** (lo que requerirá instalar el SDK de .NET 8)?
-    *   ¿O prefieres aprovechar que ya tienes **Python 3.12** instalado para hacer una aplicación de escritorio rápida?
-2.  Instalación / provisión de **FFmpeg** en el entorno.
+*   **Fase 1:** ✅ Completada.
+*   **Fase 2:** ✅ Completada y testeada (13/13 pruebas exitosas).
+*   **Fase activa para continuar:** 👉 **Fase 3 (Interfaz Gráfica de Usuario / GUI en WPF)**:
+    *   Probar la ejecución interactiva de la UI.
+    *   Validar la vinculación entre el reproductor de video (`MediaElement`), los deslizadores de tiempo y los comandos de corte.
