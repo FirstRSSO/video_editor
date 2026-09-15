@@ -105,8 +105,8 @@ public class FFmpegMediaAnalyzer : IMediaAnalyzer
     public async Task<Result<IReadOnlyList<TimeSpan>>> ExtractKeyframesAsync(string videoPath, CancellationToken cancellationToken = default)
     {
         var ffprobe = _locator.GetFFprobePath();
-        // Extraer únicamente los frames de tipo I (Keyframes)
-        var arguments = $"-select_streams v -skip_frame nokey -show_frames -show_entries frame=pkt_pts_time -of csv=p=0 -v quiet \"{videoPath}\"";
+        // Extraer frames de tipo I (Keyframes) soportando pts_time y pkt_pts_time
+        var arguments = $"-select_streams v -skip_frame nokey -show_frames -show_entries frame=pts_time,pkt_pts_time -of csv=p=0 -v quiet \"{videoPath}\"";
 
         var runResult = await _runner.ExecuteAsync(ffprobe, arguments, cancellationToken: cancellationToken);
         if (runResult.IsFailure)
@@ -117,9 +117,17 @@ public class FFmpegMediaAnalyzer : IMediaAnalyzer
         string? line;
         while ((line = await reader.ReadLineAsync()) != null)
         {
-            if (double.TryParse(line.Trim(), CultureInfo.InvariantCulture, out var seconds))
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            // El formato CSV puede incluir side_data u otros campos separados por coma
+            var tokens = line.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var token in tokens)
             {
-                keyframes.Add(TimeSpan.FromSeconds(seconds));
+                if (double.TryParse(token.Trim(), CultureInfo.InvariantCulture, out var seconds))
+                {
+                    keyframes.Add(TimeSpan.FromSeconds(seconds));
+                    break;
+                }
             }
         }
 
