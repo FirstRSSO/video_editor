@@ -12,7 +12,9 @@
         Foreground="{StaticResource TextPrimary}"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
-        Drop="Window_Drop">
+        Drop="Window_Drop"
+        Focusable="True"
+        KeyDown="Window_KeyDown">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -58,8 +60,9 @@
                 <MediaElement x:Name="VideoPlayer" 
                               LoadedBehavior="Manual" 
                               UnloadedBehavior="Stop"
-                              ScrubbingEnabled="True"
-                              MediaOpened="VideoPlayer_MediaOpened"/>
+                              ScrubbingEnabled="False"
+                              MediaOpened="VideoPlayer_MediaOpened"
+                              MediaFailed="VideoPlayer_MediaFailed"/>
                 
                 <!-- Overlay si no hay video cargado -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -83,6 +86,8 @@
                     <TextBlock Text="{Binding CurrentPositionString}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <Slider Grid.Column="1" x:Name="TimelineSlider" 
                             Minimum="0" Maximum="100" 
+                            PreviewMouseDown="TimelineSlider_PreviewMouseDown"
+                            PreviewMouseUp="TimelineSlider_PreviewMouseUp"
                             ValueChanged="TimelineSlider_ValueChanged"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="2" Text="{Binding DurationString}" VerticalAlignment="Center" Margin="10,0,0,0"/>
@@ -97,10 +102,18 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal">
+                        <Button Content="⏮ -5s" Click="BtnBack5_Click" ToolTip="Retroceder 5 segundos"
+                                Padding="8,6" Margin="0,0,4,0" Background="{StaticResource CardBackground}" Foreground="White"/>
+                        <Button Content="◀ -1s" Click="BtnBack1_Click" ToolTip="Retroceder 1 segundo"
+                                Padding="8,6" Margin="0,0,6,0" Background="{StaticResource CardBackground}" Foreground="White"/>
                         <Button x:Name="BtnPlayPause" Content="▶ Reproducir" Click="BtnPlayPause_Click" 
-                                Padding="12,6" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
+                                Padding="12,6" Margin="0,0,6,0" Background="{StaticResource CardBackground}" Foreground="White"/>
+                        <Button Content="▶ +1s" Click="BtnFwd1_Click" ToolTip="Adelantar 1 segundo"
+                                Padding="8,6" Margin="0,0,4,0" Background="{StaticResource CardBackground}" Foreground="White"/>
+                        <Button Content="⏭ +5s" Click="BtnFwd5_Click" ToolTip="Adelantar 5 segundos"
+                                Padding="8,6" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
                         <Button Content="⏹ Detener" Click="BtnStop_Click" 
-                                Padding="12,6" Background="{StaticResource CardBackground}" Foreground="White"/>
+                                Padding="10,6" Background="{StaticResource CardBackground}" Foreground="White"/>
                     </StackPanel>
 
                     <!-- Marcadores de Recorte -->
