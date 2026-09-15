@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D7FA1746-0C2E-44C1-ABED-ABAE2EFBEA37}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.Domain", "src\RecortadorDeVideos.Domain\RecortadorDeVideos.Domain.csproj", "{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.Application", "src\RecortadorDeVideos.Application\RecortadorDeVideos.Application.csproj", "{87468D7B-A24B-4F7D-A16A-F32346711CEB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.Infrastructure", "src\RecortadorDeVideos.Infrastructure\RecortadorDeVideos.Infrastructure.csproj", "{206A9483-FBA7-4001-810E-17F802FEB4B3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.UI", "src\RecortadorDeVideos.UI\RecortadorDeVideos.UI.csproj", "{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{60AB25A6-11D7-4D8C-877E-DA1BA8905270}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.Domain.UnitTests", "tests\RecortadorDeVideos.Domain.UnitTests\RecortadorDeVideos.Domain.UnitTests.csproj", "{F6166FC3-5A79-4441-A45A-251A4A89F19A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RecortadorDeVideos.Application.UnitTests", "tests\RecortadorDeVideos.Application.UnitTests\RecortadorDeVideos.Application.UnitTests.csproj", "{676D2008-3F68-433E-926A-F36B217FBBEA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87468D7B-A24B-4F7D-A16A-F32346711CEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87468D7B-A24B-4F7D-A16A-F32346711CEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87468D7B-A24B-4F7D-A16A-F32346711CEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87468D7B-A24B-4F7D-A16A-F32346711CEB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{206A9483-FBA7-4001-810E-17F802FEB4B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{206A9483-FBA7-4001-810E-17F802FEB4B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{206A9483-FBA7-4001-810E-17F802FEB4B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{206A9483-FBA7-4001-810E-17F802FEB4B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6166FC3-5A79-4441-A45A-251A4A89F19A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6166FC3-5A79-4441-A45A-251A4A89F19A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6166FC3-5A79-4441-A45A-251A4A89F19A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6166FC3-5A79-4441-A45A-251A4A89F19A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{676D2008-3F68-433E-926A-F36B217FBBEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{676D2008-3F68-433E-926A-F36B217FBBEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{676D2008-3F68-433E-926A-F36B217FBBEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{676D2008-3F68-433E-926A-F36B217FBBEA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6D5E5BAD-4682-4F63-AB9D-5CC31B7C254F} = {D7FA1746-0C2E-44C1-ABED-ABAE2EFBEA37}
+		{87468D7B-A24B-4F7D-A16A-F32346711CEB} = {D7FA1746-0C2E-44C1-ABED-ABAE2EFBEA37}
+		{206A9483-FBA7-4001-810E-17F802FEB4B3} = {D7FA1746-0C2E-44C1-ABED-ABAE2EFBEA37}
+		{37FC080C-BD5D-4BCA-8511-36AF5E3AD8ED} = {D7FA1746-0C2E-44C1-ABED-ABAE2EFBEA37}
+		{F6166FC3-5A79-4441-A45A-251A4A89F19A} = {60AB25A6-11D7-4D8C-877E-DA1BA8905270}
+		{676D2008-3F68-433E-926A-F36B217FBBEA} = {60AB25A6-11D7-4D8C-877E-DA1BA8905270}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,29 @@
+## .NET and Build Output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+TestResults/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## IDEs and Editors
+.vs/
+.vscode/
+.idea/
+*.swp
+*.*~
+
+## Temporary / OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+
+## FFmpeg runtime binaries if downloaded locally (keep git light)
+tools/ffmpeg/
+runtimes/win-x64/native/*.exe
