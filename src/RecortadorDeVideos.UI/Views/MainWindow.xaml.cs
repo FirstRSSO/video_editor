@@ -47,8 +47,8 @@ public partial class MainWindow : Window
 
     public MainWindow(MainViewModel viewModel)
     {
-        InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        InitializeComponent();
         DataContext = _viewModel;
 
         _viewModel.RequestToggleFullscreen += ToggleFullscreen;
@@ -869,7 +869,7 @@ public partial class MainWindow : Window
 
     private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (e.Source != MainTabControl) return;
+        if (e.Source != MainTabControl || _viewModel == null) return;
 
         if (MainTabControl.SelectedItem != TabItemCut && _isPlaying)
         {
@@ -1026,6 +1026,8 @@ public partial class MainWindow : Window
 
     private void StopAllAudioClipsPlayback()
     {
+        if (_viewModel?.AudioClips == null) return;
+
         foreach (var clip in _viewModel.AudioClips)
         {
             clip.StopPlayback();
@@ -1065,17 +1067,22 @@ public partial class MainWindow : Window
 
     private void EditorVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        if (_viewModel == null) return;
+
         if (EditorVideoPlayer != null && EditorVolumeSlider != null)
         {
             EditorVideoPlayer.Volume = Math.Clamp(_viewModel.MainVolume * EditorVolumeSlider.Value, 0.0, 1.0);
         }
 
         var masterVol = EditorVolumeSlider != null ? EditorVolumeSlider.Value : 1.0;
-        foreach (var clip in _viewModel.AudioClips)
+        if (_viewModel.AudioClips != null)
         {
-            if (clip.IsPlaying)
+            foreach (var clip in _viewModel.AudioClips)
             {
-                clip.SyncPlayback(_viewModel.CurrentPlaybackPosition, _isEditorPlaying, masterVol);
+                if (clip.IsPlaying)
+                {
+                    clip.SyncPlayback(_viewModel.CurrentPlaybackPosition, _isEditorPlaying, masterVol);
+                }
             }
         }
     }
@@ -1133,6 +1140,8 @@ public partial class MainWindow : Window
 
     private void EditorTimelineScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        if (_viewModel == null) return;
+
         if (e.NewSize.Width > 100)
         {
             _viewModel.UpdateTimelineMetrics(e.NewSize.Width);
@@ -1147,6 +1156,8 @@ public partial class MainWindow : Window
 
     private void UpdateTimelineDisplay()
     {
+        if (_viewModel == null) return;
+
         RenderTimelineRuler();
         UpdateAudioClipsOnTimeline();
         UpdatePlayheadPosition();
@@ -1154,7 +1165,7 @@ public partial class MainWindow : Window
 
     private void RenderTimelineRuler()
     {
-        if (TimelineRulerCanvas == null) return;
+        if (_viewModel == null || TimelineRulerCanvas == null) return;
         TimelineRulerCanvas.Children.Clear();
         if (_viewModel.VideoDuration.TotalSeconds <= 0 || _viewModel.TimelinePixelsPerSecond <= 0) return;
 
@@ -1216,7 +1227,7 @@ public partial class MainWindow : Window
 
     private void UpdateAudioClipsOnTimeline()
     {
-        if (AudioClipsCanvas == null) return;
+        if (_viewModel?.AudioClips == null || AudioClipsCanvas == null) return;
         AudioClipsCanvas.Children.Clear();
         if (_viewModel.TimelinePixelsPerSecond <= 0) return;
 
@@ -1385,7 +1396,7 @@ public partial class MainWindow : Window
 
     private void UpdatePlayheadPosition()
     {
-        if (_viewModel.TimelinePixelsPerSecond <= 0 || PlayheadMarker == null || PlayheadLine == null) return;
+        if (_viewModel == null || _viewModel.TimelinePixelsPerSecond <= 0 || PlayheadMarker == null || PlayheadLine == null) return;
 
         var x = _viewModel.CurrentPlaybackPosition.TotalSeconds * _viewModel.TimelinePixelsPerSecond;
         Canvas.SetLeft(PlayheadMarker, x);
