@@ -151,6 +151,16 @@ public class MainViewModel : INotifyPropertyChanged
             else if (param is double d)
                 TimelineZoom = d;
         });
+
+        // Comandos de recorte y división de audios
+        SplitSelectedClipCommand = new RelayCommand(SplitSelectedClipAtPlayhead, () => CanSplitSelectedClip && !IsProcessing);
+        TrimSelectedClipStartToPlayheadCommand = new RelayCommand(TrimSelectedClipStartToPlayhead, () => HasSelectedClip && !IsProcessing);
+        TrimSelectedClipEndToPlayheadCommand = new RelayCommand(TrimSelectedClipEndToPlayhead, () => HasSelectedClip && !IsProcessing);
+        ResetSelectedClipTrimCommand = new RelayCommand(ResetSelectedClipTrim, () => HasSelectedClip && !IsProcessing);
+        NudgeSelectedClipInPointForwardCommand = new RelayCommand(() => NudgeSelectedClipInPoint(0.5), () => HasSelectedClip && !IsProcessing);
+        NudgeSelectedClipInPointBackwardCommand = new RelayCommand(() => NudgeSelectedClipInPoint(-0.5), () => HasSelectedClip && !IsProcessing);
+        NudgeSelectedClipDurationForwardCommand = new RelayCommand(() => NudgeSelectedClipDuration(0.5), () => HasSelectedClip && !IsProcessing);
+        NudgeSelectedClipDurationBackwardCommand = new RelayCommand(() => NudgeSelectedClipDuration(-0.5), () => HasSelectedClip && !IsProcessing);
     }
 
     #region Propiedades de Video y Reproducción
@@ -210,7 +220,13 @@ public class MainViewModel : INotifyPropertyChanged
     public TimeSpan CurrentPlaybackPosition
     {
         get => _currentPlaybackPosition;
-        set { _currentPlaybackPosition = value; OnPropertyChanged(); OnPropertyChanged(nameof(CurrentPositionString)); }
+        set
+        {
+            _currentPlaybackPosition = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CurrentPositionString));
+            OnPropertyChanged(nameof(CanSplitSelectedClip));
+        }
     }
 
     public string CurrentPositionString => TimeRange.FormatFFmpegTime(CurrentPlaybackPosition);
@@ -384,6 +400,14 @@ public class MainViewModel : INotifyPropertyChanged
     public ICommand NudgeSelectedClipBackwardCommand { get; }
     public ICommand DeleteSelectedClipCommand { get; }
     public ICommand SetZoomCommand { get; }
+    public ICommand SplitSelectedClipCommand { get; }
+    public ICommand TrimSelectedClipStartToPlayheadCommand { get; }
+    public ICommand TrimSelectedClipEndToPlayheadCommand { get; }
+    public ICommand ResetSelectedClipTrimCommand { get; }
+    public ICommand NudgeSelectedClipInPointForwardCommand { get; }
+    public ICommand NudgeSelectedClipInPointBackwardCommand { get; }
+    public ICommand NudgeSelectedClipDurationForwardCommand { get; }
+    public ICommand NudgeSelectedClipDurationBackwardCommand { get; }
 
     private bool _isFullscreen;
     public bool IsFullscreen
@@ -443,6 +467,7 @@ public class MainViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(HasSelectedClip));
                 OnPropertyChanged(nameof(SelectedClipFileName));
                 OnPropertyChanged(nameof(SelectedClipTimeRangeString));
+                OnPropertyChanged(nameof(CanSplitSelectedClip));
             }
         }
     }
@@ -521,6 +546,88 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedAudioClip.NudgeStartTime(TimeSpan.FromSeconds(seconds), VideoDuration);
         SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
         StatusMessage = $"Locución '{SelectedAudioClip.FileName}' colocada en {SelectedAudioClip.FormattedStartTime}.";
+    }
+
+    public bool CanSplitSelectedClip =>
+        HasSelectedClip &&
+        CurrentPlaybackPosition > SelectedAudioClip!.StartTime + TimeSpan.FromMilliseconds(200) &&
+        CurrentPlaybackPosition < SelectedAudioClip.EndTime - TimeSpan.FromMilliseconds(200);
+
+    public void SplitSelectedClipAtPlayhead()
+    {
+        if (!CanSplitSelectedClip || SelectedAudioClip == null) return;
+
+        int currentIndex = AudioClips.IndexOf(SelectedAudioClip);
+        var secondClip = SelectedAudioClip.SplitAt(CurrentPlaybackPosition, AudioClips.Count + 1);
+        if (secondClip != null)
+        {
+            secondClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+            SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+
+            if (currentIndex >= 0 && currentIndex < AudioClips.Count)
+            {
+                AudioClips.Insert(currentIndex + 1, secondClip);
+            }
+            else
+            {
+                AudioClips.Add(secondClip);
+            }
+
+            ReindexAudioClips();
+            NotifyAudioClipsChanged();
+            UpdateTimelineMetrics();
+            SelectedAudioClip = secondClip;
+            StatusMessage = $"Audio dividido en dos partes en {TimeRange.FormatFFmpegTime(CurrentPlaybackPosition)}.";
+        }
+    }
+
+    public void TrimSelectedClipStartToPlayhead()
+    {
+        if (SelectedAudioClip == null) return;
+        if (SelectedAudioClip.TrimStartAtPlayhead(CurrentPlaybackPosition))
+        {
+            SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+            UpdateTimelineMetrics();
+            StatusMessage = $"Inicio de '{SelectedAudioClip.FileName}' recortado a {SelectedAudioClip.FormattedStartTime}.";
+        }
+    }
+
+    public void TrimSelectedClipEndToPlayhead()
+    {
+        if (SelectedAudioClip == null) return;
+        if (SelectedAudioClip.TrimEndAtPlayhead(CurrentPlaybackPosition))
+        {
+            SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+            UpdateTimelineMetrics();
+            StatusMessage = $"Fin de '{SelectedAudioClip.FileName}' recortado a {SelectedAudioClip.FormattedEndTime}.";
+        }
+    }
+
+    public void ResetSelectedClipTrim()
+    {
+        if (SelectedAudioClip == null) return;
+        SelectedAudioClip.ResetTrim();
+        SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+        UpdateTimelineMetrics();
+        StatusMessage = $"Recorte restablecido para '{SelectedAudioClip.FileName}'.";
+    }
+
+    public void NudgeSelectedClipInPoint(double seconds)
+    {
+        if (SelectedAudioClip == null) return;
+        SelectedAudioClip.NudgeInPoint(TimeSpan.FromSeconds(seconds));
+        SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+        UpdateTimelineMetrics();
+        StatusMessage = $"Punto de entrada: {SelectedAudioClip.FormattedInPoint}.";
+    }
+
+    public void NudgeSelectedClipDuration(double seconds)
+    {
+        if (SelectedAudioClip == null) return;
+        SelectedAudioClip.NudgeDuration(TimeSpan.FromSeconds(seconds));
+        SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
+        UpdateTimelineMetrics();
+        StatusMessage = $"Duración activa: {SelectedAudioClip.FormattedDuration}.";
     }
 
     #endregion
@@ -646,8 +753,9 @@ public class MainViewModel : INotifyPropertyChanged
                 {
                     System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                     {
-                        newItem.Duration = analysis.Value.Duration;
+                        newItem.SetOriginalDuration(analysis.Value.Duration);
                         newItem.UpdateTimelineBounds(TimelinePixelsPerSecond);
+                        UpdateTimelineMetrics();
                     });
                 }
             }
@@ -790,7 +898,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
 
             var request = new TrimVideoRequestDto(
                 SourceVideoPath: VideoFilePath,
@@ -843,7 +951,7 @@ public class MainViewModel : INotifyPropertyChanged
 
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
 
             var request = new TrimVideoRequestDto(
                 SourceVideoPath: VideoFilePath,
@@ -895,7 +1003,7 @@ public class MainViewModel : INotifyPropertyChanged
             var destPath = GenerateSafeOutputPath(dir, $"{fileName}_segmentos_unidos", ext);
 
             var segmentPairs = Segments.Select(s => new TimeSpanPairDto(s.Start, s.End, s.DisplayName)).ToList();
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
 
             var request = new MergeSegmentsRequestDto(
                 SourceVideoPath: VideoFilePath,

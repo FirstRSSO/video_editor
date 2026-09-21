@@ -9,7 +9,9 @@ public sealed record AudioOverlayClipDto(
     string FilePath,
     TimeSpan StartTime,
     double Volume = 1.0,
-    string? Label = null);
+    string? Label = null,
+    TimeSpan? InPoint = null,
+    TimeSpan? Duration = null);
 
 public sealed record TrimVideoRequestDto(
     string SourceVideoPath,

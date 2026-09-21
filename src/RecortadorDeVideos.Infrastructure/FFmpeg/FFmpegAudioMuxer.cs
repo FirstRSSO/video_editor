@@ -79,14 +79,31 @@ public class FFmpegAudioMuxer : IAudioMuxer
                     var delay = clip.StartTime >= timeRange.StartTime ? clip.StartTime - timeRange.StartTime : TimeSpan.Zero;
                     long delayMs = (long)Math.Round(delay.TotalMilliseconds);
 
+                    var filterChain = new List<string>();
+
+                    // Recorte del clip de audio (punto de entrada y duración)
+                    if (clip.InPoint > TimeSpan.Zero || clip.Duration.HasValue)
+                    {
+                        var startSec = clip.InPoint.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                        if (clip.Duration.HasValue)
+                        {
+                            var endSec = (clip.InPoint + clip.Duration.Value).TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                            filterChain.Add($"atrim=start={startSec}:end={endSec},asetpts=PTS-STARTPTS");
+                        }
+                        else
+                        {
+                            filterChain.Add($"atrim=start={startSec},asetpts=PTS-STARTPTS");
+                        }
+                    }
+
+                    filterChain.Add($"volume={vol}");
+
                     if (delayMs > 0)
                     {
-                        filterSteps.Add($"[{inputIndex}:a]volume={vol},adelay={delayMs}:all=1[a{inputIndex}]");
+                        filterChain.Add($"adelay={delayMs}:all=1");
                     }
-                    else
-                    {
-                        filterSteps.Add($"[{inputIndex}:a]volume={vol}[a{inputIndex}]");
-                    }
+
+                    filterSteps.Add($"[{inputIndex}:a]{string.Join(",", filterChain)}[a{inputIndex}]");
                     mixInputs.Add($"[a{inputIndex}]");
                 }
 

@@ -1114,6 +1114,43 @@
                                     <TextBlock Text="▶" FontSize="9" Foreground="{StaticResource Sage}"/>
                                 </Button>
 
+                                <!-- Botones de Recorte y División de Audio -->
+                                <Rectangle Width="1" Height="14" Fill="{StaticResource RuleFaint}" Margin="6,0"/>
+
+                                <Button Style="{StaticResource MarkerButton}" Padding="7,3" Margin="2,0"
+                                        Command="{Binding SplitSelectedClipCommand}"
+                                        ToolTip="Dividir clip en el cabezal de reproducción actual (Atajo: S)">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconScissorsGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Width="10" Height="10" Stretch="Uniform" Margin="0,0,4,0"/>
+                                        <TextBlock Text="Dividir (S)" FontSize="11" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource QuietButton}" Padding="6,3" Margin="2,0"
+                                        Command="{Binding TrimSelectedClipStartToPlayheadCommand}"
+                                        ToolTip="Fijar inicio del recorte en el cabezal actual">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconMarkInGeometry}" Fill="{StaticResource BrassLit}" Width="9" Height="9" Stretch="Uniform" Margin="0,0,3,0"/>
+                                        <TextBlock Text="[ In" FontSize="10.5"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource QuietButton}" Padding="6,3" Margin="2,0"
+                                        Command="{Binding TrimSelectedClipEndToPlayheadCommand}"
+                                        ToolTip="Fijar fin del recorte en el cabezal actual">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Out ]" FontSize="10.5" Margin="0,0,3,0"/>
+                                        <Path Data="{StaticResource IconMarkOutGeometry}" Fill="{StaticResource BrassLit}" Width="9" Height="9" Stretch="Uniform"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource QuietButton}" Padding="5,3" Margin="2,0"
+                                        Command="{Binding ResetSelectedClipTrimCommand}"
+                                        ToolTip="Restablecer recorte a la duración completa original">
+                                    <TextBlock Text="↺ Todo" FontSize="10.5"/>
+                                </Button>
+
                                 <!-- Volumen de este clip -->
                                 <TextBlock Text="Vol:" FontSize="11" Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                                 <Slider Style="{StaticResource VolumeSliderStyle}" Width="60"
@@ -1123,7 +1160,7 @@
                                 <!-- Escuchar / Borrar -->
                                 <Button Style="{StaticResource TransportGlyph}" Width="24" Height="24" Margin="6,0,0,0"
                                         Command="{Binding ToggleClipPreviewCommand}" CommandParameter="{Binding SelectedAudioClip}"
-                                        ToolTip="Escuchar este fragmento">
+                                        ToolTip="Escuchar este fragmento recortado">
                                     <Path Data="{StaticResource IconPlayGeometry}" Fill="{StaticResource Sage}" Width="10" Height="10" Stretch="Uniform"/>
                                 </Button>
                                 <Button Style="{StaticResource DangerActionButton}" Padding="5,3" Margin="6,0,0,0"

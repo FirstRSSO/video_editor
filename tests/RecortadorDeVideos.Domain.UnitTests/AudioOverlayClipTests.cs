@@ -57,4 +57,33 @@ public class AudioOverlayClipTests
         Assert.Equal("voice1.mp3", config.Clips[0].FilePath);
         Assert.Equal(TimeSpan.FromSeconds(5), config.Clips[0].StartTime);
     }
+
+    [Fact]
+    public void Create_WithInPointAndDuration_ShouldSucceed()
+    {
+        var clip = new AudioOverlayClip(
+            "voice.mp3", 
+            TimeSpan.FromSeconds(10), 
+            1.0, 
+            "Trimmed Voice", 
+            inPoint: TimeSpan.FromSeconds(3), 
+            duration: TimeSpan.FromSeconds(5));
+
+        Assert.Equal(TimeSpan.FromSeconds(3), clip.InPoint);
+        Assert.Equal(TimeSpan.FromSeconds(5), clip.Duration);
+    }
+
+    [Fact]
+    public void Create_NegativeInPoint_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => 
+            new AudioOverlayClip("voice.mp3", TimeSpan.Zero, 1.0, null, inPoint: TimeSpan.FromSeconds(-1)));
+    }
+
+    [Fact]
+    public void Create_ZeroOrNegativeDuration_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => 
+            new AudioOverlayClip("voice.mp3", TimeSpan.Zero, 1.0, null, duration: TimeSpan.Zero));
+    }
 }

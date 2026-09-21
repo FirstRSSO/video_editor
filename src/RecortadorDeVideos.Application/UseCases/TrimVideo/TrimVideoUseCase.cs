@@ -50,7 +50,7 @@ public class TrimVideoUseCase : ITrimVideoUseCase
         if (request.AudioMode == AudioMode.OverlayClips || (request.AudioClips != null && request.AudioClips.Count > 0))
         {
             var domainClips = (request.AudioClips ?? Array.Empty<AudioOverlayClipDto>())
-                .Select(c => new AudioOverlayClip(c.FilePath, c.StartTime, c.Volume, c.Label))
+                .Select(c => new AudioOverlayClip(c.FilePath, c.StartTime, c.Volume, c.Label, c.InPoint, c.Duration))
                 .ToList();
 
             if (domainClips.Count == 0)

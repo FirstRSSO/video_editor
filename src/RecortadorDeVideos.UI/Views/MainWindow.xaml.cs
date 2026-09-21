@@ -12,6 +12,7 @@ using RecortadorDeVideos.UI.ViewModels;
 using Path = System.IO.Path;
 using WpfPath = System.Windows.Shapes.Path;
 using WpfLine = System.Windows.Shapes.Line;
+using WpfRectangle = System.Windows.Shapes.Rectangle;
 
 namespace RecortadorDeVideos.UI.Views;
 
@@ -40,8 +41,10 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _editorTimer;
     private bool _isEditorPlaying = false;
     private bool _isDraggingRuler = false;
-    private bool _isDraggingClip = false;
+    private enum ClipDragMode { None, Move, TrimStart, TrimEnd }
+    private ClipDragMode _clipDragMode = ClipDragMode.None;
     private AudioClipItemViewModel? _draggedClip = null;
+    private Border? _draggedClipBorder = null;
     private Point _clipDragStartMousePoint;
     private TimeSpan _clipDragStartTime;
 
@@ -664,6 +667,24 @@ public partial class MainWindow : Window
             _viewModel.AddCurrentRangeToSegmentsCommand.Execute(null);
             e.Handled = true;
         }
+        else if (e.Key == Key.S)
+        {
+            if (MainTabControl.SelectedItem == TabItemEditor && _viewModel.CanSplitSelectedClip)
+            {
+                _viewModel.SplitSelectedClipAtPlayhead();
+                UpdateTimelineDisplay();
+                e.Handled = true;
+            }
+        }
+        else if (e.Key == Key.Delete || e.Key == Key.Back)
+        {
+            if (MainTabControl.SelectedItem == TabItemEditor && _viewModel.HasSelectedClip && _viewModel.DeleteSelectedClipCommand.CanExecute(null))
+            {
+                _viewModel.DeleteSelectedClipCommand.Execute(null);
+                UpdateTimelineDisplay();
+                e.Handled = true;
+            }
+        }
     }
 
     private void OpenAudio_Click(object sender, RoutedEventArgs e)
@@ -924,7 +945,7 @@ public partial class MainWindow : Window
 
     private void EditorTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isDraggingRuler || _isDraggingClip) return;
+        if (_isDraggingRuler || _clipDragMode != ClipDragMode.None) return;
         if (!EditorVideoPlayer.NaturalDuration.HasTimeSpan) return;
 
         try
@@ -1252,21 +1273,68 @@ public partial class MainWindow : Window
                 Background = clip.IsSelected 
                     ? new SolidColorBrush(Color.FromRgb(0x35, 0x2C, 0x18)) 
                     : new SolidColorBrush(Color.FromRgb(0x20, 0x2A, 0x23)),
-                BorderBrush = clip.IsSelected ? brassBrush : new SolidColorBrush(Color.FromRgb(0x38, 0x4A, 0x3E)),
+                BorderBrush = clip.IsSelected 
+                    ? brassBrush 
+                    : (clip.IsTrimmed ? slateBrush : new SolidColorBrush(Color.FromRgb(0x38, 0x4A, 0x3E))),
                 BorderThickness = new Thickness(clip.IsSelected ? 2 : 1),
-                Cursor = Cursors.Hand,
-                ToolTip = $"{clip.FileName}\nInicio: {clip.FormattedStartTime}\nDuración: {clip.FormattedDuration}\nVolumen: {clip.VolumePercentString}\n(Arrastra horizontalmente para mover en la línea de tiempo)"
+                ClipToBounds = true
             };
 
             Canvas.SetLeft(border, clip.TimelineLeft);
             Canvas.SetTop(border, 6);
 
-            var grid = new Grid
+            var mainGrid = new Grid();
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
+
+            // Manija izquierda para recortar inicio
+            var leftHandle = new Border
             {
-                Margin = new Thickness(6, 4, 6, 4)
+                Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                Cursor = Cursors.SizeWE,
+                ToolTip = "Recortar inicio del audio (arrastrar)"
             };
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var leftGrip = new WpfRectangle
+            {
+                Width = 2,
+                Height = 22,
+                Fill = clip.IsSelected ? brassLitBrush : sageBrush,
+                Opacity = 0.6,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            leftHandle.Child = leftGrip;
+            Grid.SetColumn(leftHandle, 0);
+            mainGrid.Children.Add(leftHandle);
+
+            // Manija derecha para recortar duración/fin
+            var rightHandle = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF)),
+                Cursor = Cursors.SizeWE,
+                ToolTip = "Recortar fin del audio (arrastrar)"
+            };
+            var rightGrip = new WpfRectangle
+            {
+                Width = 2,
+                Height = 22,
+                Fill = clip.IsSelected ? brassLitBrush : sageBrush,
+                Opacity = 0.6,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            rightHandle.Child = rightGrip;
+            Grid.SetColumn(rightHandle, 2);
+            mainGrid.Children.Add(rightHandle);
+
+            // Contenido central para mover o reproducir
+            var contentGrid = new Grid
+            {
+                Margin = new Thickness(4, 4, 4, 4),
+                Cursor = Cursors.Hand,
+                ToolTip = $"{clip.FileName}\nInicio: {clip.FormattedStartTime}\nDuración: {clip.FormattedDuration}\n{clip.FormattedTrimSummary}\n(Arrastra para mover en la línea de tiempo)"
+            };
+            contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var topPanel = new DockPanel();
 
@@ -1276,7 +1344,7 @@ public partial class MainWindow : Window
                 Width = 20,
                 Height = 20,
                 Margin = new Thickness(0, 0, 4, 0),
-                ToolTip = "Escuchar fragmento"
+                ToolTip = "Escuchar fragmento recortado"
             };
             var playPath = new WpfPath
             {
@@ -1307,22 +1375,33 @@ public partial class MainWindow : Window
             };
             topPanel.Children.Add(titleText);
             Grid.SetRow(topPanel, 0);
-            grid.Children.Add(topPanel);
+            contentGrid.Children.Add(topPanel);
 
             var timeText = new TextBlock
             {
-                Text = $"{clip.FormattedStartTime} ({clip.FormattedDuration})",
+                Text = clip.IsTrimmed 
+                    ? $"{clip.FormattedStartTime} ({clip.FormattedDuration} • corte)" 
+                    : $"{clip.FormattedStartTime} ({clip.FormattedDuration})",
                 FontFamily = monoFont,
                 FontSize = 9,
-                Foreground = slateBrush,
+                Foreground = clip.IsTrimmed ? brassLitBrush : slateBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetRow(timeText, 1);
-            grid.Children.Add(timeText);
+            contentGrid.Children.Add(timeText);
 
-            border.Child = grid;
+            Grid.SetColumn(contentGrid, 1);
+            mainGrid.Children.Add(contentGrid);
 
-            border.MouseLeftButtonDown += AudioClip_MouseLeftButtonDown;
+            border.Child = mainGrid;
+
+            // Conectar eventos de arrastre
+            var cClip = clip;
+            var cBorder = border;
+            leftHandle.MouseLeftButtonDown += (s, e) => StartClipDrag(cClip, cBorder, ClipDragMode.TrimStart, e);
+            rightHandle.MouseLeftButtonDown += (s, e) => StartClipDrag(cClip, cBorder, ClipDragMode.TrimEnd, e);
+            contentGrid.MouseLeftButtonDown += (s, e) => StartClipDrag(cClip, cBorder, ClipDragMode.Move, e);
+
             border.MouseMove += AudioClip_MouseMove;
             border.MouseLeftButtonUp += AudioClip_MouseLeftButtonUp;
 
@@ -1330,16 +1409,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private void AudioClip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void StartClipDrag(AudioClipItemViewModel clip, Border border, ClipDragMode mode, MouseButtonEventArgs e)
     {
-        if (sender is not Border border || border.Tag is not AudioClipItemViewModel clip) return;
-
         clip.StopPlayback();
         _viewModel.SelectedAudioClip = clip;
         _draggedClip = clip;
+        _draggedClipBorder = border;
+        _clipDragMode = mode;
         _clipDragStartMousePoint = e.GetPosition(TimelineContentGrid);
         _clipDragStartTime = clip.StartTime;
-        _isDraggingClip = true;
 
         border.CaptureMouse();
         e.Handled = true;
@@ -1348,48 +1426,72 @@ public partial class MainWindow : Window
 
     private void AudioClip_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_isDraggingClip || _draggedClip == null || sender is not Border border) return;
+        if (_clipDragMode == ClipDragMode.None || _draggedClip == null || _draggedClipBorder == null) return;
         if (_viewModel.TimelinePixelsPerSecond <= 0) return;
 
         var currentMousePoint = e.GetPosition(TimelineContentGrid);
         var deltaX = currentMousePoint.X - _clipDragStartMousePoint.X;
         var deltaSeconds = deltaX / _viewModel.TimelinePixelsPerSecond;
-        var newSeconds = _clipDragStartTime.TotalSeconds + deltaSeconds;
 
         var maxLimit = _viewModel.VideoDuration.TotalSeconds > 0 
             ? _viewModel.VideoDuration.TotalSeconds 
             : 3600.0;
-        newSeconds = Math.Clamp(newSeconds, 0.0, maxLimit);
 
-        _draggedClip.StartTime = TimeSpan.FromSeconds(newSeconds);
-        _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
-        Canvas.SetLeft(border, _draggedClip.TimelineLeft);
+        switch (_clipDragMode)
+        {
+            case ClipDragMode.Move:
+                var newSeconds = Math.Clamp(_clipDragStartTime.TotalSeconds + deltaSeconds, 0.0, maxLimit);
+                _draggedClip.StartTime = TimeSpan.FromSeconds(newSeconds);
+                _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
+                Canvas.SetLeft(_draggedClipBorder, _draggedClip.TimelineLeft);
+                _viewModel.StatusMessage = $"Moviendo '{_draggedClip.FileName}' a {_draggedClip.FormattedStartTime}…";
+                break;
 
-        _viewModel.StatusMessage = $"Moviendo '{_draggedClip.FileName}' a {_draggedClip.FormattedStartTime}…";
+            case ClipDragMode.TrimStart:
+                _draggedClip.TrimStartByDelta(deltaSeconds, TimeSpan.FromSeconds(maxLimit));
+                _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
+                Canvas.SetLeft(_draggedClipBorder, _draggedClip.TimelineLeft);
+                _draggedClipBorder.Width = _draggedClip.TimelineWidth;
+                _clipDragStartMousePoint = currentMousePoint;
+                _clipDragStartTime = _draggedClip.StartTime;
+                _viewModel.StatusMessage = $"Recortando inicio de '{_draggedClip.FileName}': desde {_draggedClip.FormattedInPoint}…";
+                break;
+
+            case ClipDragMode.TrimEnd:
+                _draggedClip.TrimEndByDelta(deltaSeconds);
+                _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
+                _draggedClipBorder.Width = _draggedClip.TimelineWidth;
+                _clipDragStartMousePoint = currentMousePoint;
+                _viewModel.StatusMessage = $"Recortando fin de '{_draggedClip.FileName}': duración {_draggedClip.FormattedDuration}…";
+                break;
+        }
     }
 
     private void AudioClip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_isDraggingClip)
+        if (_clipDragMode != ClipDragMode.None)
         {
-            _isDraggingClip = false;
-            if (sender is Border border)
+            _clipDragMode = ClipDragMode.None;
+            if (_draggedClipBorder != null)
             {
-                border.ReleaseMouseCapture();
+                _draggedClipBorder.ReleaseMouseCapture();
             }
 
             if (_draggedClip != null)
             {
-                _viewModel.StatusMessage = $"Locución '{_draggedClip.FileName}' fijada en {_draggedClip.FormattedStartTime}.";
+                _viewModel.StatusMessage = $"Audio '{_draggedClip.FileName}' ajustado en la pista.";
+                _viewModel.UpdateTimelineMetrics();
+                UpdateTimelineDisplay();
+
                 if (_isEditorPlaying)
                 {
                     var masterVol = EditorVolumeSlider != null ? EditorVolumeSlider.Value : 1.0;
                     _draggedClip.SyncPlayback(_viewModel.CurrentPlaybackPosition, true, masterVol);
                 }
                 _draggedClip = null;
+                _draggedClipBorder = null;
             }
 
-            UpdateTimelineDisplay();
             e.Handled = true;
         }
     }
