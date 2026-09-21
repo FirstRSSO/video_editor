@@ -1,15 +1,841 @@
 <Application x:Class="RecortadorDeVideos.UI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:RecortadorDeVideos.UI.Converters">
     <Application.Resources>
-        <!-- Estilos globales básicos y tema oscuro -->
-        <SolidColorBrush x:Key="PrimaryBackground" Color="#1E1E1E"/>
-        <SolidColorBrush x:Key="SecondaryBackground" Color="#252526"/>
-        <SolidColorBrush x:Key="CardBackground" Color="#2D2D30"/>
-        <SolidColorBrush x:Key="AccentColor" Color="#007ACC"/>
-        <SolidColorBrush x:Key="AccentHover" Color="#1C97EA"/>
-        <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="TextSecondary" Color="#CCCCCC"/>
-        <SolidColorBrush x:Key="BorderColor" Color="#3F3F46"/>
+
+        <!-- ============================================================= -->
+        <!-- MESA DE MONTAJE: esmalte verde-máquina, tinta hueso, latón    -->
+        <!-- ============================================================= -->
+
+        <!-- Superficies: se separan por escalón de valor, no por contorno -->
+        <Color x:Key="BenchColor">#1A1E1B</Color>
+        <Color x:Key="DeckColor">#242A26</Color>
+        <Color x:Key="GateColor">#0B0E0C</Color>
+
+        <SolidColorBrush x:Key="Bench" Color="{StaticResource BenchColor}"/>
+        <SolidColorBrush x:Key="Deck" Color="{StaticResource DeckColor}"/>
+        <SolidColorBrush x:Key="DeckRaised" Color="#2C332E"/>
+        <SolidColorBrush x:Key="Gate" Color="{StaticResource GateColor}"/>
+
+        <!-- Filos: solo donde dos cosas realmente chocan -->
+        <SolidColorBrush x:Key="Rule" Color="#343B36"/>
+        <SolidColorBrush x:Key="RuleFaint" Color="#272E29"/>
+        <SolidColorBrush x:Key="RuleBright" Color="#4A544C"/>
+
+        <!-- Tinta -->
+        <SolidColorBrush x:Key="Bone" Color="#EDE8DA"/>
+        <SolidColorBrush x:Key="Sage" Color="#8C968C"/>
+        <SolidColorBrush x:Key="SageDim" Color="#646E65"/>
+
+        <!-- Latón: pertenece al corte. Cabezal, rango, marcas [I] y [O]. -->
+        <Color x:Key="BrassColor">#E0A93B</Color>
+        <SolidColorBrush x:Key="Brass" Color="{StaticResource BrassColor}"/>
+        <SolidColorBrush x:Key="BrassLit" Color="#F2C45C"/>
+        <SolidColorBrush x:Key="BrassDeep" Color="#B8862A"/>
+        <SolidColorBrush x:Key="BrassWash" Color="#2E2A1C"/>
+
+        <!-- Señales funcionales -->
+        <SolidColorBrush x:Key="Slate" Color="#7FA3B8"/>
+        <SolidColorBrush x:Key="Moss" Color="#5E9E70"/>
+        <SolidColorBrush x:Key="MossLit" Color="#72B584"/>
+        <SolidColorBrush x:Key="MossDeep" Color="#4A7F5A"/>
+        <SolidColorBrush x:Key="Oxide" Color="#C4472F"/>
+        <SolidColorBrush x:Key="OxideWash" Color="#2D1C18"/>
+
+        <!-- Alias heredados: cualquier referencia antigua sigue resolviendo -->
+        <SolidColorBrush x:Key="PrimaryBackground" Color="#1A1E1B"/>
+        <SolidColorBrush x:Key="SecondaryBackground" Color="#242A26"/>
+        <SolidColorBrush x:Key="CardBackground" Color="#2C332E"/>
+        <SolidColorBrush x:Key="CardBackgroundHover" Color="#343C36"/>
+        <SolidColorBrush x:Key="CardBackgroundSelected" Color="#3B443D"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#343B36"/>
+        <SolidColorBrush x:Key="BorderColorSubtle" Color="#272E29"/>
+        <SolidColorBrush x:Key="BorderColorLight" Color="#4A544C"/>
+        <SolidColorBrush x:Key="AccentColor" Color="#E0A93B"/>
+        <SolidColorBrush x:Key="AccentHover" Color="#F2C45C"/>
+        <SolidColorBrush x:Key="AccentPressed" Color="#B8862A"/>
+        <SolidColorBrush x:Key="AccentPrimaryBlue" Color="#7FA3B8"/>
+        <SolidColorBrush x:Key="AccentPrimaryBlueHover" Color="#9BBACC"/>
+        <SolidColorBrush x:Key="SuccessColor" Color="#5E9E70"/>
+        <SolidColorBrush x:Key="SuccessHover" Color="#72B584"/>
+        <SolidColorBrush x:Key="DangerColor" Color="#C4472F"/>
+        <SolidColorBrush x:Key="DangerHover" Color="#D8583F"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#EDE8DA"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#8C968C"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#646E65"/>
+        <SolidColorBrush x:Key="TimecodeCyan" Color="#7FA3B8"/>
+        <SolidColorBrush x:Key="TimelineTrackBackground" Color="#0B0E0C"/>
+
+        <!-- ============================================================= -->
+        <!-- TIPOGRAFÍA                                                    -->
+        <!-- Bahnschrift = DIN 1451, la letra de la señalética industrial  -->
+        <!-- y de las etiquetas de lata de película. Consolas solo para    -->
+        <!-- cifras: avance fijo, los dígitos no bailan al hacer scrubbing -->
+        <!-- ============================================================= -->
+        <FontFamily x:Key="UIFont">Bahnschrift, Segoe UI</FontFamily>
+        <FontFamily x:Key="MonoFont">Consolas, Courier New</FontFamily>
+
+
+        <!-- ============================================================= -->
+        <!-- CONVERSORES                                                   -->
+        <!-- ============================================================= -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:RangeBarConverter x:Key="RangeBar"/>
+        <conv:SpeedPresetConverter x:Key="SpeedPreset"/>
+
+        <!-- ============================================================= -->
+        <!-- GEOMETRÍAS                                                    -->
+        <!-- ============================================================= -->
+        <PathGeometry x:Key="IconPlayGeometry" Figures="M8 5v14l11-7z"/>
+        <PathGeometry x:Key="IconPauseGeometry" Figures="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        <PathGeometry x:Key="IconStopGeometry" Figures="M6 6h12v12H6z"/>
+        <PathGeometry x:Key="IconStepBackGeometry" Figures="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+        <PathGeometry x:Key="IconStepFwdGeometry" Figures="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+        <PathGeometry x:Key="IconJumpBackGeometry" Figures="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+        <PathGeometry x:Key="IconScissorsGeometry" Figures="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0 12c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm9.5-9c-.77 0-1.42.34-1.85.87l-2.02-2.02 2.02-2.02C14.08 8.34 14.73 8 15.5 8c1.93 0 3.5 1.57 3.5 3.5S17.43 14 15.5 14z"/>
+        <PathGeometry x:Key="IconFolderGeometry" Figures="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        <PathGeometry x:Key="IconEyeGeometry" Figures="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+        <PathGeometry x:Key="IconTrashGeometry" Figures="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+        <PathGeometry x:Key="IconPlusGeometry" Figures="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        <PathGeometry x:Key="IconArrowUpGeometry" Figures="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+        <PathGeometry x:Key="IconArrowDownGeometry" Figures="M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z"/>
+        <PathGeometry x:Key="IconBoltGeometry" Figures="M11 21h-1l1-7H7.5c-.88 0-.33-.75-.31-.78C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.9 17.55 11 21 11 21z"/>
+        <PathGeometry x:Key="IconClapperGeometry" Figures="M19.8 4H4.2C3 4 2 5 2 6.2v11.6C2 19 3 20 4.2 20h15.6c1.2 0 2.2-1 2.2-2.2V6.2C22 5 21 4 19.8 4zM7 6.5l2 3.5H6.5L4.5 6.5H7zm4 0l2 3.5h-2.5l-2-3.5H11zm4 0l2 3.5h-2.5l-2-3.5H15zm4.5 11.5c0 .3-.2.5-.5.5H4.2c-.3 0-.5-.2-.5-.5V12h16.3v6z"/>
+        <PathGeometry x:Key="IconMusicGeometry" Figures="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+        <PathGeometry x:Key="IconFullscreenGeometry" Figures="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+        <PathGeometry x:Key="IconFullscreenExitGeometry" Figures="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+        <PathGeometry x:Key="IconSidebarGeometry" Figures="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 16H5V5h9v14zm5 0h-3V5h3v14z"/>
+        <PathGeometry x:Key="IconMarkInGeometry" Figures="M6 4h3v16H6V4zm5 0h7l-4 8 4 8h-7V4z"/>
+        <PathGeometry x:Key="IconMarkOutGeometry" Figures="M18 4h-3v16h3V4zm-5 0H6l4 8-4 8h7V4z"/>
+
+        <!-- Perforación de película: raíl de agujeros que se repite -->
+        <DrawingBrush x:Key="SprocketRail" TileMode="Tile"
+                      Viewport="0,0,13,9" ViewportUnits="Absolute"
+                      Stretch="None" AlignmentX="Left" AlignmentY="Center">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing Brush="#2A322A">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="2.5,2,7,5" RadiusX="1.2" RadiusY="1.2"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+
+        <!-- ============================================================= -->
+        <!-- MODOS DE TRABAJO: raíl plano, subrayado de latón en el activo -->
+        <!-- ============================================================= -->
+        <Style TargetType="{x:Type TabControl}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabControl}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border x:Name="TabHeaderBorder" Grid.Row="0"
+                                    BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1"
+                                    Margin="0,0,0,16"
+                                    Visibility="{Binding DataContext.IsNotFullscreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}, FallbackValue=Visible}">
+                                <TabPanel IsItemsHost="True" Background="Transparent" VerticalAlignment="Bottom"/>
+                            </Border>
+                            <!-- El nombre es obligatorio: WPF localiza por él el contenido
+                                 de la pestaña activa para exponerlo a los lectores de pantalla. -->
+                            <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type TabItem}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Grid>
+                            <Border x:Name="TabBorder" Background="Transparent" Padding="2,10,26,11">
+                                <ContentPresenter x:Name="ContentSite" ContentSource="Header"
+                                                  TextElement.Foreground="{StaticResource SageDim}"
+                                                  TextElement.FontWeight="SemiBold"
+                                                  TextElement.FontSize="13"
+                                                  HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- El subrayado desborda 1px para cubrir la regla del raíl -->
+                            <Border x:Name="Underline" Height="2" VerticalAlignment="Bottom"
+                                    Margin="0,0,24,-1" Background="Transparent"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Underline" Property="Background" Value="{StaticResource Brass}"/>
+                                <Setter TargetName="ContentSite" Property="TextElement.Foreground" Value="{StaticResource Bone}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ContentSite" Property="TextElement.Foreground" Value="{StaticResource Sage}"/>
+                                <Setter TargetName="Underline" Property="Background" Value="{StaticResource RuleBright}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ============================================================= -->
+        <!-- LA TIRA                                                       -->
+        <!-- Ventanilla de proyección: raíles de perforación arriba y      -->
+        <!-- abajo, banda de imagen al centro, cabezal de latón a toda     -->
+        <!-- altura. Es lo único que puede llevar relleno de latón.        -->
+        <!-- ============================================================= -->
+        <Style x:Key="FilmstripSlider" TargetType="{x:Type Slider}">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Slider}">
+                        <Grid VerticalAlignment="Center" Background="Transparent">
+                            <!-- La ventanilla -->
+                            <Border x:Name="GateWell" Height="40" CornerRadius="2"
+                                    Background="{StaticResource Gate}"
+                                    BorderBrush="{StaticResource RuleFaint}" BorderThickness="1">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="9"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="9"/>
+                                    </Grid.RowDefinitions>
+                                    <Rectangle Grid.Row="0" Fill="{StaticResource SprocketRail}"/>
+                                    <Rectangle Grid.Row="1" Fill="#121812"/>
+                                    <Rectangle Grid.Row="2" Fill="{StaticResource SprocketRail}"/>
+                                </Grid>
+                            </Border>
+
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <!-- Película ya revisada: un velo más claro -->
+                                                <Border Background="#1E261F" Height="20" Margin="1,0,0,0" VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb x:Name="Thumb" Width="13" Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Grid Background="Transparent">
+                                                    <!-- Cabezal: barra a toda altura con cabeza en la cima -->
+                                                    <Rectangle x:Name="Stem" Width="2" Height="40"
+                                                               Fill="{StaticResource Brass}" VerticalAlignment="Center"/>
+                                                    <Path x:Name="Head" VerticalAlignment="Top" Margin="0,-1,0,0"
+                                                          Fill="{StaticResource Brass}"
+                                                          Data="M0,0 L11,0 L5.5,7 Z"
+                                                          HorizontalAlignment="Center"/>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Stem" Property="Fill" Value="{StaticResource BrassLit}"/>
+                                                        <Setter TargetName="Head" Property="Fill" Value="{StaticResource BrassLit}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="Stem" Property="Fill" Value="{StaticResource Bone}"/>
+                                                        <Setter TargetName="Head" Property="Fill" Value="{StaticResource Bone}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="GateWell" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tira compacta: misma gramática, media altura (previsualización) -->
+        <Style x:Key="FilmstripSliderCompact" TargetType="{x:Type Slider}" BasedOn="{StaticResource FilmstripSlider}">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Slider}">
+                        <Grid VerticalAlignment="Center" Background="Transparent">
+                            <Border Height="20" CornerRadius="2"
+                                    Background="{StaticResource Gate}"
+                                    BorderBrush="{StaticResource RuleFaint}" BorderThickness="1">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="6"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="6"/>
+                                    </Grid.RowDefinitions>
+                                    <Rectangle Grid.Row="0" Fill="{StaticResource SprocketRail}"/>
+                                    <Rectangle Grid.Row="1" Fill="#121812"/>
+                                    <Rectangle Grid.Row="2" Fill="{StaticResource SprocketRail}"/>
+                                </Grid>
+                            </Border>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <Border Background="#1E261F" Height="6" Margin="1,0,0,0" VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="9" Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Grid Background="Transparent">
+                                                    <Rectangle x:Name="Stem" Width="2" Height="20"
+                                                               Fill="{StaticResource Brass}" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Stem" Property="Fill" Value="{StaticResource BrassLit}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Alias heredado -->
+        <Style x:Key="TimelineSliderStyle" TargetType="{x:Type Slider}" BasedOn="{StaticResource FilmstripSlider}"/>
+
+        <!-- Potenciómetro: para volumen y velocidad. Línea fina, tope plano. -->
+        <Style x:Key="VolumeSliderStyle" TargetType="{x:Type Slider}">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Slider}">
+                        <Grid VerticalAlignment="Center" Background="Transparent">
+                            <Border Height="3" Background="{StaticResource Gate}"
+                                    BorderBrush="{StaticResource RuleFaint}" BorderThickness="1"/>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <Border Background="{StaticResource SageDim}" Height="3"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="4" Height="18" Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Rectangle x:Name="Knob" Fill="{StaticResource Bone}"/>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Knob" Property="Fill" Value="{StaticResource Brass}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="Knob" Property="Fill" Value="{StaticResource Brass}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ============================================================= -->
+        <!-- BOTONES                                                       -->
+        <!-- ============================================================= -->
+
+        <!-- Neutro: abrir, alternar, todo lo que no compromete nada -->
+        <Style x:Key="QuietButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Bone}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="13,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource DeckRaised}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource RuleBright}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource Gate}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Alias heredados -->
+        <Style x:Key="RoundedButton" TargetType="{x:Type Button}" BasedOn="{StaticResource QuietButton}"/>
+        <Style x:Key="TransportButton" TargetType="{x:Type Button}" BasedOn="{StaticResource QuietButton}">
+            <Setter Property="Padding" Value="9,6"/>
+        </Style>
+
+        <!-- Transporte: glifo solo, sin caja hasta que lo tocas -->
+        <Style x:Key="TransportGlyph" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Sage}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource DeckRaised}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Bone}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource DeckRaised}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Reproducir / Pausar: el disco de hueso. El control más usado. -->
+        <Style x:Key="PlayPauseButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{StaticResource Bone}"/>
+            <Setter Property="Foreground" Value="{StaticResource Gate}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Grid>
+                            <Ellipse x:Name="disc" Fill="{TemplateBinding Background}"/>
+                            <Ellipse x:Name="ring" Stroke="{StaticResource Brass}" StrokeThickness="2" Opacity="0"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="disc" Property="Fill" Value="{StaticResource BrassLit}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="disc" Property="Fill" Value="{StaticResource Brass}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ring" Property="Opacity" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Marcar [I] / [O]: latón fantasma. Pertenecen al corte. -->
+        <Style x:Key="MarkerButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{StaticResource BrassWash}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brass}"/>
+            <Setter Property="BorderBrush" Value="#4E421F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource Brass}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Gate}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Alias heredado: la acción de abrir archivo ya no compite con el corte -->
+        <Style x:Key="PrimaryAccentButton" TargetType="{x:Type Button}" BasedOn="{StaticResource QuietButton}">
+            <Setter Property="Background" Value="{StaticResource DeckRaised}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource RuleBright}"/>
+        </Style>
+
+        <!-- Exportar: lo único verde de la aplicación, una vez por modo -->
+        <Style x:Key="SuccessRenderButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="{StaticResource Moss}"/>
+            <Setter Property="Foreground" Value="#0B140E"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="18,12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3"
+                                Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource MossLit}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource MossDeep}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Bone}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Quitar: óxido, y solo se enciende cuando el puntero está encima -->
+        <Style x:Key="DangerActionButton" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SageDim}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource OxideWash}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Oxide}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Oxide}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource Oxide}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Selector segmentado: un solo bloque, sin huecos entre opciones -->
+        <Style x:Key="StudioChipRadio" TargetType="{x:Type RadioButton}">
+            <Setter Property="Foreground" Value="{StaticResource Sage}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="13,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="ChipBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,5,0">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChipBorder" Property="Background" Value="{StaticResource DeckRaised}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Bone}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ChipBorder" Property="Background" Value="{StaticResource Bone}"/>
+                                <Setter TargetName="ChipBorder" Property="BorderBrush" Value="{StaticResource Bone}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Gate}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ChipBorder" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ChipBorder" Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Preajustes de velocidad: un grupo de opciones, porque uno de
+             ellos esta activo y hay que poder verlo -->
+        <Style x:Key="PresetButton" TargetType="{x:Type RadioButton}" BasedOn="{StaticResource StudioChipRadio}">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="58"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,0,5,5"/>
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="GroupName" Value="SpeedPresets"/>
+        </Style>
+
+        <!-- ============================================================= -->
+        <!-- LISTAS                                                        -->
+        <!-- ============================================================= -->
+        <Style TargetType="{x:Type ListBoxItem}">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Barra de desplazamiento: 5px, sin flechas, sin canal -->
+        <Style x:Key="SlimScrollThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border x:Name="t" Background="{StaticResource RuleBright}" CornerRadius="2.5" Margin="1,0"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="t" Property="Background" Value="{StaticResource Sage}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="7"/>
+            <Setter Property="MinWidth" Value="7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" Focusable="False"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" Focusable="False"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SlimScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Height" Value="7"/>
+                    <Setter Property="MinHeight" Value="7"/>
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid Background="Transparent">
+                                    <Track x:Name="PART_Track">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="{x:Static ScrollBar.PageLeftCommand}" Opacity="0" Focusable="False"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="{x:Static ScrollBar.PageRightCommand}" Opacity="0" Focusable="False"/>
+                                        </Track.IncreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource SlimScrollThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ============================================================= -->
+        <!-- AVISOS Y PROGRESO                                             -->
+        <!-- ============================================================= -->
+        <Style TargetType="{x:Type ToolTip}">
+            <Setter Property="Background" Value="{StaticResource Gate}"/>
+            <Setter Property="Foreground" Value="{StaticResource Bone}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource RuleBright}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontFamily" Value="{StaticResource UIFont}"/>
+            <Setter Property="HasDropShadow" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToolTip}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}" MaxWidth="320">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Progreso: una hebra de latón sobre la ventanilla, sin degradado -->
+        <Style TargetType="{x:Type ProgressBar}">
+            <Setter Property="Height" Value="2"/>
+            <Setter Property="Background" Value="{StaticResource RuleFaint}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ProgressBar}">
+                        <Border Background="{TemplateBinding Background}" ClipToBounds="True">
+                            <Grid x:Name="TemplateRoot">
+                                <Border x:Name="PART_Track" Background="Transparent"/>
+                                <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                        Background="{StaticResource Brass}"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Application.Resources>
 </Application>

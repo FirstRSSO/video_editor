@@ -23,5 +23,10 @@ public enum AudioMode
     /// <summary>
     /// Elimina por completo el audio, generando un video mudo.
     /// </summary>
-    Mute
+    Mute,
+
+    /// <summary>
+    /// Superpone múltiples clips de audio o locuciones en posiciones temporales específicas del video.
+    /// </summary>
+    OverlayClips
 }

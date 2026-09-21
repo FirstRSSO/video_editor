@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Filtro de sombra sutil -->
+    <filter id="badgeShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0B0E0C" flood-opacity="0.6"/>
+    </filter>
+    <filter id="bladeGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="glow"/>
+      <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+    </filter>
+
+    <!-- Gradientes de Latón y Metal -->
+    <linearGradient id="brassRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5D075"/>
+      <stop offset="35%" stop-color="#E0A93B"/>
+      <stop offset="70%" stop-color="#B8862A"/>
+      <stop offset="100%" stop-color="#8A5E14"/>
+    </linearGradient>
+
+    <linearGradient id="metalPlate" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#242B27"/>
+      <stop offset="50%" stop-color="#1A1E1B"/>
+      <stop offset="100%" stop-color="#141715"/>
+    </linearGradient>
+
+    <linearGradient id="filmGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F2C45C"/>
+      <stop offset="50%" stop-color="#E0A93B"/>
+      <stop offset="100%" stop-color="#A57522"/>
+    </linearGradient>
+
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF5D6"/>
+      <stop offset="25%" stop-color="#F8DB82"/>
+      <stop offset="60%" stop-color="#E0A93B"/>
+      <stop offset="100%" stop-color="#9C6B15"/>
+    </linearGradient>
+
+    <linearGradient id="incisionLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#FFDE80"/>
+      <stop offset="100%" stop-color="#E0A93B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Grupo Principal con Sombra -->
+  <g filter="url(#badgeShadow)">
+    <!-- Base Squircle: Esmalte Verde-Máquina con Borde de Latón -->
+    <rect x="36" y="36" width="440" height="440" rx="108" ry="108" fill="url(#metalPlate)" stroke="url(#brassRim)" stroke-width="14" />
+    
+    <!-- Bisel interior sutil -->
+    <rect x="45" y="45" width="422" height="422" rx="100" ry="100" fill="none" stroke="#2D3630" stroke-width="2" opacity="0.6"/>
+
+    <!-- Tira de Película de 35mm (Fotograma central con perforaciones) -->
+    <g transform="translate(176, 126)">
+      <!-- Marco exterior de película en latón -->
+      <path d="M 0 0 H 160 V 260 H 0 Z" fill="none" stroke="url(#filmGold)" stroke-width="12" stroke-linejoin="round" />
+      
+      <!-- Ventana de fotograma central -->
+      <rect x="28" y="24" width="104" height="212" rx="8" ry="8" fill="#0B0E0C" stroke="url(#filmGold)" stroke-width="6"/>
+
+      <!-- Perforaciones Izquierda -->
+      <g fill="url(#filmGold)">
+        <rect x="6" y="24" width="14" height="20" rx="3"/>
+        <rect x="6" y="58" width="14" height="20" rx="3"/>
+        <rect x="6" y="92" width="14" height="20" rx="3"/>
+        <rect x="6" y="126" width="14" height="20" rx="3"/>
+        <rect x="6" y="160" width="14" height="20" rx="3"/>
+        <rect x="6" y="194" width="14" height="20" rx="3"/>
+        <rect x="6" y="228" width="14" height="20" rx="3"/>
+      </g>
+
+      <!-- Perforaciones Derecha -->
+      <g fill="url(#filmGold)">
+        <rect x="140" y="24" width="14" height="20" rx="3"/>
+        <rect x="140" y="58" width="14" height="20" rx="3"/>
+        <rect x="140" y="92" width="14" height="20" rx="3"/>
+        <rect x="140" y="126" width="14" height="20" rx="3"/>
+        <rect x="140" y="160" width="14" height="20" rx="3"/>
+        <rect x="140" y="194" width="14" height="20" rx="3"/>
+        <rect x="140" y="228" width="14" height="20" rx="3"/>
+      </g>
+    </g>
+
+    <!-- Cuchilla de Corte / Estilete de Montaje en Diagonal -->
+    <g filter="url(#bladeGlow)">
+      <!-- Hoja afilada de latón pulido cortando en ángulo de 45° -->
+      <path d="M 130 162 L 352 328 L 372 376 L 332 342 L 142 198 Z" fill="url(#bladeGrad)" stroke="#FFE89E" stroke-width="2"/>
+      
+      <!-- Filo de luz incisivo (incisión brillante en el corte) -->
+      <line x1="126" y1="158" x2="380" y2="384" stroke="url(#incisionLight)" stroke-width="4" stroke-linecap="round"/>
+      
+      <!-- Destello de corte de precisión -->
+      <circle cx="256" cy="271" r="5" fill="#FFFFFF" opacity="0.9"/>
+    </g>
+  </g>
+</svg>

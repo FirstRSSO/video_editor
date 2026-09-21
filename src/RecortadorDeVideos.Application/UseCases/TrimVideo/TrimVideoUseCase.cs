@@ -46,18 +46,38 @@ public class TrimVideoUseCase : ITrimVideoUseCase
             return Result<TrimVideoResponseDto>.Failure(timeError!);
 
         // Construir configuración de audio
-        AudioTrackConfig audioConfig = request.AudioMode switch
+        AudioTrackConfig audioConfig;
+        if (request.AudioMode == AudioMode.OverlayClips || (request.AudioClips != null && request.AudioClips.Count > 0))
         {
-            AudioMode.KeepOriginal => AudioTrackConfig.KeepOriginal(),
-            AudioMode.Mute => AudioTrackConfig.Mute(),
-            AudioMode.Replace => string.IsNullOrWhiteSpace(request.ExternalAudioPath)
-                ? throw new InvalidOperationException("Se requiere la ruta del archivo de audio para reemplazar.")
-                : AudioTrackConfig.ReplaceWith(request.ExternalAudioPath),
-            AudioMode.Mix => string.IsNullOrWhiteSpace(request.ExternalAudioPath)
-                ? throw new InvalidOperationException("Se requiere la ruta del archivo de audio para mezclar.")
-                : AudioTrackConfig.Mix(request.ExternalAudioPath, request.MainVolume, request.BackgroundVolume),
-            _ => AudioTrackConfig.KeepOriginal()
-        };
+            var domainClips = (request.AudioClips ?? Array.Empty<AudioOverlayClipDto>())
+                .Select(c => new AudioOverlayClip(c.FilePath, c.StartTime, c.Volume, c.Label))
+                .ToList();
+
+            if (domainClips.Count == 0)
+            {
+                audioConfig = AudioTrackConfig.KeepOriginal();
+            }
+            else
+            {
+                bool keepOriginal = request.MainVolume > 0.001;
+                audioConfig = AudioTrackConfig.WithClips(domainClips, keepOriginalAudio: keepOriginal, mainVolume: request.MainVolume);
+            }
+        }
+        else
+        {
+            audioConfig = request.AudioMode switch
+            {
+                AudioMode.KeepOriginal => AudioTrackConfig.KeepOriginal(),
+                AudioMode.Mute => AudioTrackConfig.Mute(),
+                AudioMode.Replace => string.IsNullOrWhiteSpace(request.ExternalAudioPath)
+                    ? throw new InvalidOperationException("Se requiere la ruta del archivo de audio para reemplazar.")
+                    : AudioTrackConfig.ReplaceWith(request.ExternalAudioPath),
+                AudioMode.Mix => string.IsNullOrWhiteSpace(request.ExternalAudioPath)
+                    ? throw new InvalidOperationException("Se requiere la ruta del archivo de audio para mezclar.")
+                    : AudioTrackConfig.Mix(request.ExternalAudioPath, request.MainVolume, request.BackgroundVolume),
+                _ => AudioTrackConfig.KeepOriginal()
+            };
+        }
 
         var cutJob = new CutJob(
             request.SourceVideoPath,
@@ -68,8 +88,8 @@ public class TrimVideoUseCase : ITrimVideoUseCase
 
         Result executionResult;
 
-        // Si se requiere reemplazo o mezcla de audio, se delega a IAudioMuxer; si es corte directo a IVideoTrimmer
-        if (request.AudioMode is AudioMode.Replace or AudioMode.Mix)
+        // Si se requiere reemplazo, mezcla de audio o superposición de clips, se delega a IAudioMuxer; si es corte directo a IVideoTrimmer
+        if (audioConfig.Mode is AudioMode.Replace or AudioMode.Mix or AudioMode.OverlayClips)
         {
             executionResult = await _audioMuxer.ProcessAudioAsync(
                 cutJob.SourceVideoPath,

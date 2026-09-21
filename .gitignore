@@ -27,3 +27,8 @@ $RECYCLE.BIN/
 ## FFmpeg runtime binaries if downloaded locally (keep git light)
 tools/ffmpeg/
 runtimes/win-x64/native/*.exe
+
+## Agent tools & cache
+.agents/
+.claude/
+skills-lock.json

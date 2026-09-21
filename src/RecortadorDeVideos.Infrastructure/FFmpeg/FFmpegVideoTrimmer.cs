@@ -25,13 +25,13 @@ public class FFmpegVideoTrimmer : IVideoTrimmer
 
         // Construir argumentos para Stream Copy sin pérdida
         var start = job.TimeRange.StartToFFmpeg();
-        var end = job.TimeRange.EndToFFmpeg();
+        var duration = job.TimeRange.DurationToFFmpeg();
 
         string audioFlag = job.AudioConfig.Mode == AudioMode.Mute ? "-an" : "-c:a copy";
 
-        // -ss antes de -i para fast seek
+        // -ss antes de -i para fast seek, -t después de -i para recortar la duración exacta
         // -avoid_negative_ts make_zero para reiniciar las marcas temporales en 0
-        var arguments = $"-y -ss {start} -to {end} -i \"{job.SourceVideoPath}\" -c:v copy {audioFlag} -avoid_negative_ts make_zero \"{job.DestinationVideoPath}\"";
+        var arguments = $"-y -ss {start} -i \"{job.SourceVideoPath}\" -t {duration} -c:v copy {audioFlag} -avoid_negative_ts make_zero \"{job.DestinationVideoPath}\"";
 
         var runResult = await _runner.ExecuteAsync(
             ffmpeg,

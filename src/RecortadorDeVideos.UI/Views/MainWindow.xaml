@@ -3,13 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:enums="clr-namespace:RecortadorDeVideos.Domain.Enums;assembly=RecortadorDeVideos.Domain"
         mc:Ignorable="d"
-        Title="Recortador de Videos MP4 - Sin Pérdida de Calidad (Lossless)"
-        Height="780" Width="1050"
-        MinHeight="650" MinWidth="850"
-        Background="{StaticResource PrimaryBackground}"
-        Foreground="{StaticResource TextPrimary}"
+        Title="CINETRIM — mesa de corte sin pérdida"
+        Icon="/Assets/app.ico"
+        WindowState="Maximized"
+        Height="760" Width="1140"
+        MinHeight="640" MinWidth="1060"
+        Background="{StaticResource Bench}"
+        Foreground="{StaticResource Bone}"
+        FontFamily="{StaticResource UIFont}"
+        FontSize="12.5"
+        TextOptions.TextFormattingMode="Display"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         Drop="Window_Drop"
@@ -20,174 +24,1634 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid x:Name="RootWindowGrid" Margin="22,0,22,18">
         <Grid.RowDefinitions>
-            <!-- Fila 0: Barra superior / Selector de archivo -->
+            <!-- Cabecera: marca, estado y la hebra de progreso -->
             <RowDefinition Height="Auto"/>
-            <!-- Fila 1: Área de Video y Reproductor -->
+            <!-- Modos de trabajo -->
             <RowDefinition Height="*"/>
-            <!-- Fila 2: Línea de Tiempo y Marcadores -->
-            <RowDefinition Height="Auto"/>
-            <!-- Fila 3: Configuración de Audio -->
-            <RowDefinition Height="Auto"/>
-            <!-- Fila 4: Barra de Progreso y Acciones -->
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Fila 0: Cabecera y Selector -->
-        <Border Grid.Row="0" Background="{StaticResource SecondaryBackground}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
-            <Grid>
+        <!-- ========================================================= -->
+        <!-- CABECERA                                                  -->
+        <!-- La hebra de latón bajo la regla es la barra de progreso:  -->
+        <!-- la película avanzando mientras FFmpeg trabaja.            -->
+        <!-- ========================================================= -->
+        <Grid Grid.Row="0" Visibility="{Binding IsNotFullscreen, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="2"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,16,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Content="📁 Abrir Video MP4" 
-                        Click="OpenVideo_Click" 
-                        Padding="14,8" Background="{StaticResource AccentColor}" 
-                        Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
-                <TextBlock Grid.Column="1" Text="{Binding VideoFileName}" 
-                           VerticalAlignment="Center" Margin="14,0" 
-                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Grid.Column="2" Text="{Binding DurationString, StringFormat='Duración: {0}'}" 
-                           VerticalAlignment="Center" Foreground="{StaticResource TextSecondary}"/>
-            </Grid>
-        </Border>
 
-        <!-- Fila 1: Reproductor de Video -->
-        <Border Grid.Row="1" Background="Black" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
-            <Grid>
-                <MediaElement x:Name="VideoPlayer" 
-                              LoadedBehavior="Manual" 
-                              UnloadedBehavior="Stop"
-                              ScrubbingEnabled="False"
-                              MediaOpened="VideoPlayer_MediaOpened"
-                              MediaFailed="VideoPlayer_MediaFailed"/>
-                
-                <!-- Overlay si no hay video cargado -->
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                            Visibility="{Binding HasNoVideo, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="Arrastra y suelta un archivo MP4 aquí o pulsa 'Abrir Video'" 
-                               Foreground="{StaticResource TextSecondary}" FontSize="16" HorizontalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Rectangle Width="3" Height="17" Fill="{StaticResource Brass}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="CINETRIM" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Bone}" VerticalAlignment="Center"/>
+                    <TextBlock Text="mesa de corte sin pérdida" FontSize="12" Foreground="{StaticResource SageDim}"
+                               VerticalAlignment="Center" Margin="12,1,0,0"/>
+                </StackPanel>
+
+                <!-- Estado: qué está haciendo la aplicación ahora mismo -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Margin="0,0,9,0" VerticalAlignment="Center"
+                             Fill="{StaticResource Moss}">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource Brass}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{StaticResource Sage}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="560"/>
+                    <TextBlock Text="{Binding ProgressPercentage, StringFormat='{}{0:0}%'}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource Brass}"
+                               VerticalAlignment="Center" Margin="14,0,0,0" MinWidth="38" TextAlignment="Right"
+                               Visibility="{Binding IsProcessing, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
             </Grid>
-        </Border>
 
-        <!-- Fila 2: Controles de Tiempo y Marcadores -->
-        <Border Grid.Row="2" Background="{StaticResource SecondaryBackground}" CornerRadius="8" Padding="14" Margin="0,0,0,12">
-            <StackPanel>
-                <!-- Slider de reproducción -->
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding CurrentPositionString}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <Slider Grid.Column="1" x:Name="TimelineSlider" 
-                            Minimum="0" Maximum="100" 
-                            PreviewMouseDown="TimelineSlider_PreviewMouseDown"
-                            PreviewMouseUp="TimelineSlider_PreviewMouseUp"
-                            ValueChanged="TimelineSlider_ValueChanged"
-                            VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Text="{Binding DurationString}" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                </Grid>
+            <!-- Regla + hebra de progreso sobre ella -->
+            <Rectangle Grid.Row="1" Height="1" VerticalAlignment="Top" Fill="{StaticResource Rule}"/>
+            <ProgressBar Grid.Row="1" Minimum="0" Maximum="100" VerticalAlignment="Top"
+                         Value="{Binding ProgressPercentage}" Background="Transparent"/>
+        </Grid>
 
-                <!-- Botones de reproducción y fijación de marcadores -->
+        <!-- ========================================================= -->
+        <!-- MODOS DE TRABAJO                                          -->
+        <!-- ========================================================= -->
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Margin="0" SelectionChanged="MainTabControl_SelectionChanged">
+
+            <!-- ===================================================== -->
+            <!-- MODO 1: CORTAR                                        -->
+            <!-- ===================================================== -->
+            <TabItem x:Name="TabItemCut">
+                <TabItem.Header>
+                    <TextBlock Text="Cortar"/>
+                </TabItem.Header>
+
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="⏮ -5s" Click="BtnBack5_Click" ToolTip="Retroceder 5 segundos"
-                                Padding="8,6" Margin="0,0,4,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <Button Content="◀ -1s" Click="BtnBack1_Click" ToolTip="Retroceder 1 segundo"
-                                Padding="8,6" Margin="0,0,6,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <Button x:Name="BtnPlayPause" Content="▶ Reproducir" Click="BtnPlayPause_Click" 
-                                Padding="12,6" Margin="0,0,6,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <Button Content="▶ +1s" Click="BtnFwd1_Click" ToolTip="Adelantar 1 segundo"
-                                Padding="8,6" Margin="0,0,4,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <Button Content="⏭ +5s" Click="BtnFwd5_Click" ToolTip="Adelantar 5 segundos"
-                                Padding="8,6" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <Button Content="⏹ Detener" Click="BtnStop_Click" 
-                                Padding="10,6" Background="{StaticResource CardBackground}" Foreground="White"/>
-                    </StackPanel>
+                    <!-- Archivo en la mesa -->
+                    <Border x:Name="FileBarBorder" Grid.Row="0"
+                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                            Padding="0,0,0,14" Margin="0,0,0,14"
+                            Visibility="{Binding IsNotFullscreen, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <!-- Marcadores de Recorte -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <Button Content="[ Fijar Inicio" Command="{Binding SetStartToCurrentCommand}" 
-                                Padding="10,6" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <TextBlock Text="{Binding StartTimeString, StringFormat='Desde: {0}'}" 
-                                   VerticalAlignment="Center" Margin="0,0,14,0" FontWeight="Bold"/>
+                            <Button Style="{StaticResource QuietButton}" Click="OpenVideo_Click" AutomationProperties.Name="Abrir video">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconFolderGeometry}" Fill="{StaticResource Bone}" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Abrir video"/>
+                                </StackPanel>
+                            </Button>
 
-                        <Button Content="] Fijar Fin" Command="{Binding SetEndToCurrentCommand}" 
-                                Padding="10,6" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                        <TextBlock Text="{Binding EndTimeString, StringFormat='Hasta: {0}'}" 
-                                   VerticalAlignment="Center" Margin="0,0,14,0" FontWeight="Bold"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="18,0,18,0">
+                                <TextBlock Text="{Binding VideoFileName}" FontWeight="SemiBold" FontSize="14"
+                                           Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding VideoFilePath}" FontSize="11" Foreground="{StaticResource SageDim}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                            </StackPanel>
 
-                        <Border Background="{StaticResource AccentColor}" CornerRadius="4" Padding="8,4">
-                            <TextBlock Text="{Binding TrimDurationString, StringFormat='Recorte: {0}'}" FontWeight="Bold" Foreground="White"/>
+                            <!-- Ficha técnica: cifras en una sola línea, sin píldoras -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding HasMetadata, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding VideoResolution}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoCodec}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoFps}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoFileSizeString}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="420"/>
+                            <ColumnDefinition x:Name="SplitterColDef" Width="Auto"/>
+                            <ColumnDefinition x:Name="SegmentsColDef" Width="320" MinWidth="250" MaxWidth="560"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ============================================ -->
+                        <!-- IMAGEN, TIRA Y TRANSPORTE                    -->
+                        <!-- ============================================ -->
+                        <Grid Grid.Column="0" Margin="0,0,10,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- La imagen: sin marco, al ras del hueco -->
+                            <Border x:Name="VideoMonitorBorder" Grid.Row="0" Background="{StaticResource Gate}"
+                                    CornerRadius="3" Margin="0,0,0,12" ClipToBounds="True"
+                                    MouseLeftButtonDown="VideoMonitor_MouseLeftButtonDown">
+                                <Grid>
+                                    <MediaElement x:Name="VideoPlayer"
+                                                  LoadedBehavior="Manual"
+                                                  UnloadedBehavior="Stop"
+                                                  ScrubbingEnabled="True"
+                                                  MediaOpened="VideoPlayer_MediaOpened"
+                                                  MediaFailed="VideoPlayer_MediaFailed"/>
+
+                                    <!-- Mesa vacía: una invitación, no una tarjeta -->
+                                    <Grid Visibility="{Binding HasNoVideo, Converter={StaticResource BoolToVis}}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" Margin="32">
+                                        <StackPanel HorizontalAlignment="Center" MaxWidth="470">
+                                            <Path Data="{StaticResource IconClapperGeometry}" Fill="{StaticResource RuleBright}"
+                                                  Width="34" Height="34" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                                            <TextBlock Text="Suelta aquí un video"
+                                                       FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Bone}"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Text="O ábrelo desde el botón de arriba. Se corta copiando el flujo original: ni un pixel se vuelve a comprimir."
+                                                       FontSize="12" Foreground="{StaticResource Sage}" HorizontalAlignment="Center"
+                                                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,26" LineHeight="18"/>
+
+                                            <!-- Atajos: tabla real, tecla y acción en columnas -->
+                                            <Grid HorizontalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="34"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.Resources>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="FontSize" Value="11.5"/>
+                                                        <Setter Property="Margin" Value="0,0,0,5"/>
+                                                    </Style>
+                                                </Grid.Resources>
+
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Espacio" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="reproducir o pausar" Foreground="{StaticResource Sage}"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="3" Text="I" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="4" Text="marcar el inicio" Foreground="{StaticResource Sage}"/>
+
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="← →" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="moverse 5 segundos" Foreground="{StaticResource Sage}"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="3" Text="O" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="marcar el final" Foreground="{StaticResource Sage}"/>
+
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="⇧ ← →" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="moverse 1 segundo" Foreground="{StaticResource Sage}"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="3" Text="Enter" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,5"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="4" Text="guardar el corte" Foreground="{StaticResource Sage}"/>
+
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="F11" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Brass}" Margin="0,0,12,0"/>
+                                                <TextBlock Grid.Row="3" Grid.Column="1" Text="pantalla completa" Foreground="{StaticResource Sage}" Margin="0"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Controles de vista: flotan sobre la imagen, que es lo que alteran -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10"
+                                                Visibility="{Binding IsNotFullscreen, Converter={StaticResource BoolToVis}}">
+                                        <Border Background="#B30B0E0C" CornerRadius="3">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Style="{StaticResource TransportGlyph}" Width="30" Height="30"
+                                                        Command="{Binding ToggleSidebarCommand}"
+                                                        AutomationProperties.Name="{Binding SidebarToggleText}"
+                                                        ToolTip="{Binding SidebarToggleTooltip}">
+                                                    <Path Data="{StaticResource IconSidebarGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="14" Height="14" Stretch="Uniform"/>
+                                                </Button>
+                                                <Button Style="{StaticResource TransportGlyph}" Width="30" Height="30"
+                                                        Click="ToggleFullscreen_Click"
+                                                        AutomationProperties.Name="Pantalla completa"
+                                                        ToolTip="Pantalla completa (F11 o doble clic en la imagen)">
+                                                    <Path Data="{StaticResource IconFullscreenGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="14" Height="14" Stretch="Uniform"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- Salir de pantalla completa -->
+                                    <Button HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16"
+                                            Style="{StaticResource QuietButton}"
+                                            Background="#CC0B0E0C"
+                                            Click="ToggleFullscreen_Click"
+                                            Visibility="{Binding IsFullscreen, Converter={StaticResource BoolToVis}}"
+                                            ToolTip="Volver a la mesa (Esc o F11)" AutomationProperties.Name="Salir de pantalla completa">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconFullscreenExitGeometry}" Fill="{StaticResource Bone}"
+                                                  Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Salir (Esc)"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- ======================================== -->
+                            <!-- LA TIRA                                  -->
+                            <!-- ======================================== -->
+                            <Border Grid.Row="1" Background="{StaticResource Deck}" CornerRadius="3"
+                                    Padding="18,15,18,14" Margin="0,0,0,10">
+                                <StackPanel>
+
+                                    <!-- Lectura de tiempo: dónde estoy, qué tengo marcado -->
+                                    <Grid Margin="0,0,0,13">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CurrentPositionString}"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="21"
+                                                       Foreground="{StaticResource Bone}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding DurationString, StringFormat='de {0}'}"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource SageDim}" VerticalAlignment="Bottom"
+                                                       Margin="12,0,0,3"/>
+                                        </StackPanel>
+
+                                        <!-- El corte marcado: latón, porque es el corte -->
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="I" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                                       Foreground="{StaticResource BrassDeep}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                            <TextBlock Text="{Binding StartTimeString}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource Brass}" VerticalAlignment="Center"/>
+                                            <Rectangle Width="14" Height="1" Fill="{StaticResource BrassDeep}" Margin="10,1,10,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="O" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                                       Foreground="{StaticResource BrassDeep}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                            <TextBlock Text="{Binding EndTimeString}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource Brass}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="=" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="20,0,8,0"/>
+                                            <TextBlock Text="{Binding TrimDurationString}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource Bone}" VerticalAlignment="Center"
+                                                       ToolTip="Lo que dura el tramo marcado"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Ventanilla de proyección + el rango encendido encima -->
+                                    <Grid Margin="0,0,0,12">
+                                        <Slider x:Name="TimelineSlider"
+                                                Style="{StaticResource FilmstripSlider}"
+                                                Minimum="0" Maximum="100"
+                                                PreviewMouseDown="TimelineSlider_PreviewMouseDown"
+                                                PreviewMouseMove="TimelineSlider_PreviewMouseMove"
+                                                PreviewMouseUp="TimelineSlider_PreviewMouseUp"
+                                                LostMouseCapture="TimelineSlider_LostMouseCapture"
+                                                ValueChanged="TimelineSlider_ValueChanged"/>
+
+                                        <!-- El margen lateral iguala la mitad del cabezal para que
+                                             el rango y el cabezal compartan la misma escala. -->
+                                        <Grid x:Name="RangeHost" Margin="6.5,0,6.5,0" IsHitTestVisible="False"
+                                              Height="38" VerticalAlignment="Center"
+                                              Visibility="{Binding HasVideo, Converter={StaticResource BoolToVis}}">
+                                            <Border Background="Transparent"
+                                                    BorderBrush="{StaticResource Brass}" BorderThickness="2,0,2,0"
+                                                    HorizontalAlignment="Stretch">
+                                                <Rectangle Fill="#3DE0A93B" Height="20" VerticalAlignment="Center"/>
+                                                <Border.Margin>
+                                                    <MultiBinding Converter="{StaticResource RangeBar}">
+                                                        <Binding Path="StartTime"/>
+                                                        <Binding Path="EndTime"/>
+                                                        <Binding Path="VideoDuration"/>
+                                                        <Binding ElementName="RangeHost" Path="ActualWidth"/>
+                                                    </MultiBinding>
+                                                </Border.Margin>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+
+                                    <!-- Transporte y marcas -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource TransportGlyph}" Click="BtnBack5_Click" ToolTip="Retroceder 5 segundos (←)">
+                                                <TextBlock Text="−5" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                                            </Button>
+                                            <Button Style="{StaticResource TransportGlyph}" Click="BtnBack1_Click" ToolTip="Retroceder 1 segundo (⇧ ←)">
+                                                <TextBlock Text="−1" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                                            </Button>
+
+                                            <Button x:Name="BtnPlayPause" Style="{StaticResource PlayPauseButton}"
+                                                    Click="BtnPlayPause_Click" Margin="8,0" ToolTip="Reproducir (Espacio)"
+                                                    AutomationProperties.Name="Reproducir">
+                                                <Path Data="{StaticResource IconPlayGeometry}" Fill="{StaticResource Gate}"
+                                                      Width="16" Height="16" Stretch="Uniform" Margin="2,0,0,0"/>
+                                            </Button>
+
+                                            <Button Style="{StaticResource TransportGlyph}" Click="BtnFwd1_Click" ToolTip="Avanzar 1 segundo (⇧ →)">
+                                                <TextBlock Text="+1" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                                            </Button>
+                                            <Button Style="{StaticResource TransportGlyph}" Click="BtnFwd5_Click" ToolTip="Avanzar 5 segundos (→)">
+                                                <TextBlock Text="+5" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+                                            </Button>
+
+                                            <Rectangle Width="1" Height="18" Fill="{StaticResource Rule}" Margin="10,0"/>
+
+                                            <Button Style="{StaticResource TransportGlyph}" Click="BtnStop_Click" AutomationProperties.Name="Detener y volver al principio" ToolTip="Detener y volver al principio">
+                                                <Path Data="{StaticResource IconStopGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                      Width="11" Height="11" Stretch="Uniform"/>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource MarkerButton}"
+                                                    Command="{Binding SetStartToCurrentCommand}" AutomationProperties.Name="Marcar el inicio"
+                                                    ToolTip="Marcar aquí el inicio del corte (I)"
+                                                    Margin="0,0,6,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="{StaticResource IconMarkInGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="11" Height="11" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                    <TextBlock Text="Marcar inicio"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource MarkerButton}"
+                                                    Command="{Binding SetEndToCurrentCommand}" AutomationProperties.Name="Marcar el final"
+                                                    ToolTip="Marcar aquí el final del corte (O)"
+                                                    Margin="0,0,14,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="{StaticResource IconMarkOutGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="11" Height="11" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                    <TextBlock Text="Marcar final"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource QuietButton}"
+                                                    Command="{Binding TrimCommand}" AutomationProperties.Name="Guardar este corte"
+                                                    ToolTip="Guardar solo el tramo marcado en un archivo nuevo, sin recomprimir">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="{StaticResource IconScissorsGeometry}" Fill="{StaticResource Bone}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                    <TextBlock Text="Guardar este corte"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ======================================== -->
+                            <!-- SONIDO                                   -->
+                            <!-- ======================================== -->
+                            <Border x:Name="AudioPanelBorder" Grid.Row="2" Background="{StaticResource Deck}"
+                                    CornerRadius="3" Padding="18,13"
+                                    Visibility="{Binding IsNotFullscreen, Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Sonido" FontSize="12" VerticalAlignment="Top"
+                                                   Margin="0,8,16,0" Foreground="{StaticResource SageDim}"/>
+
+                                        <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                         Content="Dejar el original" IsChecked="True"
+                                                         Checked="AudioMode_Checked" Tag="KeepOriginal"/>
+                                            <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                         Content="Quitar el sonido"
+                                                         Checked="AudioMode_Checked" Tag="Mute"/>
+                                            <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                         Content="Cambiarlo por otro"
+                                                         Checked="AudioMode_Checked" Tag="Replace"/>
+                                            <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                         Content="Añadir música de fondo"
+                                                         Checked="AudioMode_Checked" Tag="Mix"/>
+                                            <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                         Content="Voces en el tiempo"
+                                                         Checked="AudioMode_Checked" Tag="OverlayClips"/>
+                                        </WrapPanel>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <!-- Controles para Replace / Mix -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Visibility="{Binding IsAudioFileNeeded, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource QuietButton}" Click="OpenAudio_Click" AutomationProperties.Name="Elegir sonido"
+                                                        Padding="11,6" Margin="12,0,0,0"
+                                                        ToolTip="Elegir una pista de sonido (.mp3, .wav, .aac, .m4a)">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="{StaticResource IconMusicGeometry}" Fill="{StaticResource Sage}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                        <TextBlock Text="Elegir sonido"/>
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
+                                                            Visibility="{Binding HasAudioFile, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding AudioFileName}" FontSize="11.5" MaxWidth="130"
+                                                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Bone}"
+                                                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                    <Button Style="{StaticResource DangerActionButton}" Command="{Binding ClearAudioCommand}" AutomationProperties.Name="Quitar la pista de sonido"
+                                                            Content="✕" Padding="6,2" FontSize="11" ToolTip="Quitar esta pista"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Controles para Voces en el tiempo (OverlayClips) -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                        Visibility="{Binding IsOverlayClipsModeActive, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource MarkerButton}" Click="AddAudioClip_Click" AutomationProperties.Name="Añadir audio en cabezal"
+                                                        Padding="11,6" Margin="12,0,0,0"
+                                                        ToolTip="Añadir una locución o audio en la posición actual del reproductor">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="{StaticResource IconPlusGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                        <TextBlock Text="Añadir audio en cabezal"/>
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <Button Style="{StaticResource QuietButton}" Command="{Binding OpenAudioClipsSidebarCommand}" AutomationProperties.Name="Ver lista de audios"
+                                                        Padding="10,6" Margin="8,0,0,0"
+                                                        ToolTip="Abrir panel lateral de audios y locuciones">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="Ver lista (" Foreground="{StaticResource SageDim}"/>
+                                                        <TextBlock Text="{Binding TotalAudioClipsCount}" Foreground="{StaticResource Brass}" FontWeight="Bold"/>
+                                                        <TextBlock Text=")" Foreground="{StaticResource SageDim}"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Mezcla: solo cuando hay dos pistas que equilibrar -->
+                                    <Grid Grid.Row="1" Margin="0,14,0,2"
+                                          Visibility="{Binding IsMixModeActive, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Video" FontSize="11.5" VerticalAlignment="Center"
+                                                   Margin="0,0,12,0" Foreground="{StaticResource SageDim}"/>
+                                        <Slider Grid.Column="1" Style="{StaticResource VolumeSliderStyle}"
+                                                Value="{Binding MainVolume, Mode=TwoWay}" Minimum="0" Maximum="1"
+                                                SmallChange="0.05" LargeChange="0.1"
+                                                VerticalAlignment="Center" Margin="0,0,28,0"
+                                                ToolTip="Cuánto se oye el sonido propio del video"/>
+
+                                        <TextBlock Grid.Column="2" Text="Música" FontSize="11.5" VerticalAlignment="Center"
+                                                   Margin="0,0,12,0" Foreground="{StaticResource SageDim}"/>
+                                        <Slider Grid.Column="3" Style="{StaticResource VolumeSliderStyle}"
+                                                Value="{Binding BackgroundVolume, Mode=TwoWay}" Minimum="0" Maximum="1"
+                                                SmallChange="0.05" LargeChange="0.1"
+                                                VerticalAlignment="Center"
+                                                ToolTip="Cuánto se oye la pista que has añadido"/>
+                                    </Grid>
+
+                                    <!-- Modo Voces en el tiempo: volumen del video original de fondo -->
+                                    <Grid Grid.Row="1" Margin="0,14,0,2"
+                                          Visibility="{Binding IsOverlayClipsModeActive, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Video original" FontSize="11.5" VerticalAlignment="Center"
+                                                   Margin="0,0,14,0" Foreground="{StaticResource SageDim}"/>
+                                        <Slider Grid.Column="1" Style="{StaticResource VolumeSliderStyle}"
+                                                Value="{Binding MainVolume, Mode=TwoWay}" Minimum="0" Maximum="1"
+                                                SmallChange="0.05" LargeChange="0.1"
+                                                VerticalAlignment="Center" Margin="0,0,20,0"
+                                                ToolTip="Baja el volumen a 0 para silenciar el video y que solo se escuchen tus locuciones, o déjalo bajo para conservar el ambiente."/>
+                                        <TextBlock Grid.Column="2" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                                   Foreground="{StaticResource Bone}" VerticalAlignment="Center"
+                                                   Text="{Binding MainVolume, StringFormat='{}{0:P0}'}"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="10"
+                                      HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                      Background="Transparent" Cursor="SizeWE" ShowsPreview="False">
+                            <GridSplitter.Template>
+                                <ControlTemplate TargetType="{x:Type GridSplitter}">
+                                    <Border Background="Transparent" Width="10">
+                                        <Border x:Name="grip" Background="{StaticResource RuleFaint}" Width="1" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="grip" Property="Background" Value="{StaticResource Brass}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </GridSplitter.Template>
+                        </GridSplitter>
+
+                        <!-- ============================================ -->
+                        <!-- LA LISTA DE CORTES                           -->
+                        <!-- Es una secuencia de verdad: se pega en orden, -->
+                        <!-- así que los números dicen algo.               -->
+                        <!-- ============================================ -->
+                        <Border x:Name="SegmentsPanelBorder" Grid.Column="2" Background="{StaticResource Deck}"
+                                CornerRadius="3" Padding="16,15">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Conmutador de vista lateral: Cortes vs Voces / Audios -->
+                                <Grid Grid.Row="0" Margin="0,0,0,13">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                     Content="{Binding TotalSegmentsCount, StringFormat='Cortes ({0})'}"
+                                                     IsChecked="{Binding IsSegmentsSidebarVisible, Mode=OneWay}"
+                                                     Command="{Binding SwitchSidebarViewCommand}" CommandParameter="Segments"/>
+                                        <RadioButton Style="{StaticResource StudioChipRadio}"
+                                                     Content="{Binding TotalAudioClipsCount, StringFormat='Voces ({0})'}"
+                                                     IsChecked="{Binding IsAudioClipsSidebarVisible, Mode=OneWay}"
+                                                     Command="{Binding SwitchSidebarViewCommand}" CommandParameter="AudioClips"/>
+                                    </StackPanel>
+
+                                    <!-- Vaciar cortes -->
+                                    <Button Grid.Column="1" Style="{StaticResource DangerActionButton}"
+                                            Command="{Binding ClearSegmentsCommand}"
+                                            Content="Vaciar"
+                                            Visibility="{Binding IsSegmentsSidebarVisible, Converter={StaticResource BoolToVis}}"
+                                            ToolTip="Quitar todos los cortes de la lista"/>
+
+                                    <!-- Vaciar audios -->
+                                    <Button Grid.Column="1" Style="{StaticResource DangerActionButton}"
+                                            Command="{Binding ClearAudioClipsCommand}"
+                                            Content="Vaciar"
+                                            Visibility="{Binding IsAudioClipsSidebarVisible, Converter={StaticResource BoolToVis}}"
+                                            ToolTip="Quitar todos los audios de la lista"/>
+                                </Grid>
+
+                                <!-- ======================================================== -->
+                                <!-- VISTA 1: LISTA DE CORTES DE VIDEO                        -->
+                                <!-- ======================================================== -->
+                                <Grid Grid.Row="1" x:Name="SegmentsViewHost"
+                                      Visibility="{Binding IsSegmentsSidebarVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Button Grid.Row="0" Style="{StaticResource MarkerButton}"
+                                            Command="{Binding AddCurrentRangeToSegmentsCommand}" AutomationProperties.Name="Guardar el tramo marcado"
+                                            ToolTip="Guardar el tramo marcado en la lista (Enter)"
+                                            Padding="12,9" Margin="0,0,0,14">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Path Data="{StaticResource IconPlusGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0"/>
+                                            <TextBlock Text="Guardar el tramo marcado"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Grid Grid.Row="1" Margin="0,0,0,14">
+                                        <ListBox ItemsSource="{Binding Segments}"
+                                                 Background="Transparent" BorderThickness="0"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="Row" Background="Transparent"
+                                                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                                            Padding="0,9,0,9">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="24"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
+
+                                                            <TextBlock Grid.RowSpan="2" Text="{Binding Index}" FontFamily="{StaticResource MonoFont}"
+                                                                       FontSize="11.5" Foreground="{StaticResource BrassDeep}"
+                                                                       VerticalAlignment="Top" Margin="0,1,0,0"/>
+
+                                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontSize="12.5"
+                                                                       Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"
+                                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding DurationString}"
+                                                                       FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                                                       Foreground="{StaticResource Bone}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                                                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                                                       Text="{Binding FormattedRange}" FontFamily="{StaticResource MonoFont}"
+                                                                       FontSize="11" Foreground="{StaticResource Slate}" Margin="0,3,0,0"/>
+
+                                                            <StackPanel x:Name="Actions" Grid.Row="0" Grid.Column="3" Orientation="Horizontal"
+                                                                        VerticalAlignment="Center" Opacity="0.45">
+                                                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                                                        Command="{Binding DataContext.LoadSegmentRangeCommand, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Ver este tramo en el reproductor"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Llevar el reproductor a este tramo">
+                                                                    <Path Data="{StaticResource IconEyeGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="13" Height="13" Stretch="Uniform"/>
+                                                                </Button>
+                                                                <Button Style="{StaticResource DangerActionButton}" Padding="6,5"
+                                                                        Command="{Binding DataContext.RemoveSegmentCommand, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Quitar este corte"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Quitar este corte de la lista">
+                                                                    <Path Data="{StaticResource IconTrashGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="12" Height="12" Stretch="Uniform"/>
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                                            <Setter TargetName="Row" Property="Background" Value="#1E2420"/>
+                                                        </Trigger>
+                                                        <Trigger SourceName="Row" Property="IsKeyboardFocusWithin" Value="True">
+                                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                                        </Trigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0"
+                                                    Visibility="{Binding HasNoSegments, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="Todavía no has guardado ningún corte"
+                                                       FontSize="12.5" Foreground="{StaticResource Sage}"
+                                                       TextAlignment="Center" TextWrapping="Wrap"/>
+                                            <TextBlock Text="Marca el inicio y el final sobre la tira, y guárdalo aquí. Al exportar se pegarán en este orden."
+                                                       FontSize="11.5" Foreground="{StaticResource SageDim}"
+                                                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,7,0,0" LineHeight="17"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- El resultado, en cifras -->
+                                    <Grid Grid.Row="2" Margin="0,0,0,12"
+                                          Visibility="{Binding HasSegments, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Durará" FontSize="12" Foreground="{StaticResource SageDim}" VerticalAlignment="Bottom"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding TotalSegmentsDurationString}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="18"
+                                                   Foreground="{StaticResource Bone}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+
+                                    <Button Grid.Row="3" Style="{StaticResource SuccessRenderButton}"
+                                            Command="{Binding MergeSegmentsCommand}"
+                                            ToolTip="Corta cada tramo y los pega en un solo MP4, copiando el flujo original">
+                                        <TextBlock Text="Exportar el video final"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- ======================================================== -->
+                                <!-- VISTA 2: LISTA DE AUDIOS Y VOCES POSICIONADAS             -->
+                                <!-- ======================================================== -->
+                                <Grid Grid.Row="1" x:Name="AudioClipsViewHost"
+                                      Visibility="{Binding IsAudioClipsSidebarVisible, Converter={StaticResource BoolToVis}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Botón añadir audio en posición actual -->
+                                    <Button Grid.Row="0" Style="{StaticResource MarkerButton}"
+                                            Click="AddAudioClip_Click" AutomationProperties.Name="Añadir audio en el cabezal actual"
+                                            ToolTip="Añadir una locución o sonido que arrancará en el segundo donde está pausado el video"
+                                            Padding="12,9" Margin="0,0,0,14">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Path Data="{StaticResource IconPlusGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0"/>
+                                            <TextBlock Text="{Binding CurrentPositionString, StringFormat='Añadir audio en {0}'}"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- Lista de clips de audio -->
+                                    <Grid Grid.Row="1" Margin="0,0,0,14">
+                                        <ListBox ItemsSource="{Binding AudioClips}"
+                                                 Background="Transparent" BorderThickness="0"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="Row" Background="Transparent"
+                                                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                                            Padding="0,9,0,9">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="22"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
+
+                                                            <!-- Índice numérico -->
+                                                            <TextBlock Grid.RowSpan="3" Text="{Binding Index}" FontFamily="{StaticResource MonoFont}"
+                                                                       FontSize="11.5" Foreground="{StaticResource BrassDeep}"
+                                                                       VerticalAlignment="Top" Margin="0,2,0,0"/>
+
+                                                            <!-- Nombre del archivo -->
+                                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" FontSize="12.5"
+                                                                       Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"
+                                                                       VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="{Binding FilePath}"/>
+
+                                                            <!-- Acciones rápidas (derecha) -->
+                                                            <StackPanel x:Name="Actions" Grid.Row="0" Grid.Column="2" Orientation="Horizontal"
+                                                                        VerticalAlignment="Center" Opacity="0.6">
+                                                                <!-- Escuchar / Preview -->
+                                                                <Button Style="{StaticResource TransportGlyph}" Width="26" Height="26"
+                                                                        Command="{Binding DataContext.ToggleClipPreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Escuchar este fragmento de audio">
+                                                                    <Path Data="{StaticResource IconPlayGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="11" Height="11" Stretch="Uniform"/>
+                                                                </Button>
+                                                                <!-- Saltar reproductor al tiempo -->
+                                                                <Button Style="{StaticResource TransportGlyph}" Width="26" Height="26"
+                                                                        Command="{Binding DataContext.SeekToClipPositionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Llevar el reproductor de video a este segundo">
+                                                                    <Path Data="{StaticResource IconEyeGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="12" Height="12" Stretch="Uniform"/>
+                                                                </Button>
+                                                                <!-- Sincronizar al cabezal actual -->
+                                                                <Button Style="{StaticResource TransportGlyph}" Width="26" Height="26"
+                                                                        Command="{Binding DataContext.SetClipToCurrentPositionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Fijar este audio al segundo actual del video">
+                                                                    <Path Data="{StaticResource IconMarkInGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="11" Height="11" Stretch="Uniform"/>
+                                                                </Button>
+                                                                <!-- Eliminar -->
+                                                                <Button Style="{StaticResource DangerActionButton}" Padding="5,4" Margin="3,0,0,0"
+                                                                        Command="{Binding DataContext.RemoveAudioClipCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Quitar este audio">
+                                                                    <Path Data="{StaticResource IconTrashGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          Width="11" Height="11" Stretch="Uniform"/>
+                                                                </Button>
+                                                            </StackPanel>
+
+                                                            <!-- Tiempo de inicio en el video -->
+                                                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,3,0,4">
+                                                                <TextBlock Text="Comienza en:" FontSize="11" Foreground="{StaticResource SageDim}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding FormattedStartTime}" FontFamily="{StaticResource MonoFont}"
+                                                                           FontSize="11.5" Foreground="{StaticResource Slate}" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+
+                                                            <!-- Deslizador de volumen individual -->
+                                                            <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,2,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="34"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="Vol" FontSize="10.5" Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                <Slider Grid.Column="1" Style="{StaticResource VolumeSliderStyle}"
+                                                                        Value="{Binding Volume, Mode=TwoWay}" Minimum="0" Maximum="1.5"
+                                                                        SmallChange="0.05" LargeChange="0.1" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                        ToolTip="Volumen de esta locución"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding VolumePercentString}"
+                                                                           FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                                                                           Foreground="{StaticResource Bone}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                                            <Setter TargetName="Row" Property="Background" Value="#1E2420"/>
+                                                        </Trigger>
+                                                        <Trigger SourceName="Row" Property="IsKeyboardFocusWithin" Value="True">
+                                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                                        </Trigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <!-- Estado vacío cuando no hay audios -->
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0"
+                                                    Visibility="{Binding HasNoAudioClips, Converter={StaticResource BoolToVis}}">
+                                            <Path Data="{StaticResource IconMusicGeometry}" Fill="{StaticResource RuleBright}"
+                                                  Width="26" Height="26" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                                            <TextBlock Text="Ningún audio colocado"
+                                                       FontSize="12.5" Foreground="{StaticResource Sage}"
+                                                       HorizontalAlignment="Center" TextAlignment="Center"/>
+                                            <TextBlock Text="Pausa el tutorial en el momento exacto donde quieras colocar la voz y pulsa «Añadir audio en…»."
+                                                       FontSize="11.5" Foreground="{StaticResource SageDim}"
+                                                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="17"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Resumen de audios -->
+                                    <Grid Grid.Row="2" Margin="0,0,0,12"
+                                          Visibility="{Binding HasAudioClips, Converter={StaticResource BoolToVis}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Total audios" FontSize="12" Foreground="{StaticResource SageDim}" VerticalAlignment="Bottom"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding TotalAudioClipsCount}"
+                                                   FontFamily="{StaticResource MonoFont}" FontSize="16"
+                                                   Foreground="{StaticResource Bone}" VerticalAlignment="Bottom"/>
+                                    </Grid>
+
+                                    <!-- Botón exportar con audios -->
+                                    <Button Grid.Row="3" Style="{StaticResource SuccessRenderButton}"
+                                            Command="{Binding TrimCommand}"
+                                            ToolTip="Genera el video con todas las locuciones y audios sincronizados, preservando 100% la calidad del video">
+                                        <TextBlock Text="Exportar video con audios"/>
+                                    </Button>
+                                </Grid>
+                            </Grid>
                         </Border>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
-            </StackPanel>
-        </Border>
+            </TabItem>
 
-        <!-- Fila 3: Configuración de Audio -->
-        <Border Grid.Row="3" Background="{StaticResource SecondaryBackground}" CornerRadius="8" Padding="14" Margin="0,0,0,12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+            <!-- ===================================================== -->
+            <!-- MODO 2: EDITAR (MESA DE MONTAJE MULTIPISTA)           -->
+            <!-- ===================================================== -->
+            <TabItem x:Name="TabItemEditor">
+                <TabItem.Header>
+                    <TextBlock Text="Editar"/>
+                </TabItem.Header>
 
-                <TextBlock Text="Gestión de Audio (Sin pérdida de calidad de video)" FontWeight="Bold" FontSize="14" Margin="0,0,0,8"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- 0: Barra superior de archivo y metadatos -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 1: Monitor de previsualización y transporte -->
+                        <RowDefinition Height="*" MinHeight="220"/>
+                        <!-- 2: Barra de herramientas de la línea de tiempo -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 3: Línea de tiempo multipista interactiva -->
+                        <RowDefinition Height="185" MinHeight="150" MaxHeight="320"/>
+                    </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <RadioButton Content="Conservar Original" IsChecked="True" 
-                                 Checked="AudioMode_Checked" Tag="KeepOriginal" 
-                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <RadioButton Content="Silenciar Video (Mute)" 
-                                 Checked="AudioMode_Checked" Tag="Mute" 
-                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <RadioButton Content="Reemplazar Audio" 
-                                 Checked="AudioMode_Checked" Tag="Replace" 
-                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <RadioButton Content="Mezclar Audio de Fondo" 
-                                 Checked="AudioMode_Checked" Tag="Mix" 
-                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <!-- Archivo en montaje -->
+                    <Border Grid.Row="0" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                            Padding="0,0,0,12" Margin="0,0,0,10"
+                            Visibility="{Binding IsNotFullscreen, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <Button Content="🎵 Cargar Audio" Click="OpenAudio_Click" 
-                            Padding="10,4" Margin="0,0,8,0" Background="{StaticResource CardBackground}" Foreground="White"/>
-                    <TextBlock Text="{Binding AudioFileName}" VerticalAlignment="Center" 
-                               Foreground="{StaticResource TextSecondary}" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+                            <Button Style="{StaticResource QuietButton}" Click="OpenVideo_Click" AutomationProperties.Name="Abrir video en montaje">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconFolderGeometry}" Fill="{StaticResource Bone}" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Abrir video"/>
+                                </StackPanel>
+                            </Button>
 
-        <!-- Fila 4: Barra de Progreso y Botón de Recorte -->
-        <Border Grid.Row="4" Background="{StaticResource SecondaryBackground}" CornerRadius="8" Padding="14">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="18,0">
+                                <TextBlock Text="{Binding VideoFileName}" FontWeight="SemiBold" FontSize="13.5"
+                                           Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding VideoFilePath}" FontSize="11" Foreground="{StaticResource SageDim}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                            </StackPanel>
 
-                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Text="{Binding StatusMessage}" Margin="0,0,0,6" Foreground="{StaticResource TextSecondary}"/>
-                    <ProgressBar Height="10" Minimum="0" Maximum="100" 
-                                 Value="{Binding ProgressPercentage}" 
-                                 Foreground="{StaticResource AccentColor}" Background="{StaticResource CardBackground}"/>
-                </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding HasMetadata, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding VideoResolution}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoCodec}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoFps}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding VideoFileSizeString}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
 
-                <Button Grid.Column="1" Content="⚡ Recortar Sin Pérdida" 
-                        Command="{Binding TrimCommand}"
-                        Padding="20,12" Background="{StaticResource AccentColor}" 
-                        Foreground="White" FontWeight="Bold" FontSize="14" BorderThickness="0" Cursor="Hand"/>
-            </Grid>
-        </Border>
+                    <!-- Monitor de video + Transporte -->
+                    <Grid Grid.Row="1" Margin="0,0,0,10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Pantalla del Monitor -->
+                        <Border Grid.Row="0" Background="{StaticResource Gate}" CornerRadius="3" ClipToBounds="True">
+                            <Grid>
+                                <MediaElement x:Name="EditorVideoPlayer"
+                                              LoadedBehavior="Manual"
+                                              UnloadedBehavior="Stop"
+                                              ScrubbingEnabled="True"
+                                              MediaOpened="EditorVideoPlayer_MediaOpened"
+                                              MediaFailed="EditorVideoPlayer_MediaFailed"/>
+
+                                <!-- Estado vacío si no hay video -->
+                                <Grid Visibility="{Binding HasNoVideo, Converter={StaticResource BoolToVis}}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24">
+                                    <StackPanel HorizontalAlignment="Center" MaxWidth="460">
+                                        <Path Data="{StaticResource IconClapperGeometry}" Fill="{StaticResource RuleBright}"
+                                              Width="34" Height="34" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                                        <TextBlock Text="Mesa de montaje y locuciones"
+                                                   FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource Bone}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Carga un video para ver la línea de tiempo completa y ubicar clips de audio o voz a lo largo del tiempo arrastrándolos con el ratón."
+                                                   FontSize="12" Foreground="{StaticResource Sage}" HorizontalAlignment="Center"
+                                                   TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,18" LineHeight="18"/>
+                                        <Button Style="{StaticResource QuietButton}" HorizontalAlignment="Center" Click="OpenVideo_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="{StaticResource IconFolderGeometry}" Fill="{StaticResource Bone}" Width="13" Height="13" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                <TextBlock Text="Abrir video"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- Transporte bajo el monitor -->
+                        <Grid Grid.Row="1" Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Controles de Transporte -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                        Click="BtnEditorJumpStart_Click" ToolTip="Ir al inicio (00:00)">
+                                    <Path Data="{StaticResource IconJumpBackGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Width="12" Height="12" Stretch="Uniform"/>
+                                </Button>
+                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                        Click="BtnEditorStepBack_Click" ToolTip="Retroceder 1 segundo">
+                                    <Path Data="{StaticResource IconStepBackGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Width="11" Height="11" Stretch="Uniform"/>
+                                </Button>
+                                <Button x:Name="BtnEditorPlayPause" Style="{StaticResource TransportGlyph}" Width="36" Height="30"
+                                        Click="BtnEditorPlayPause_Click" ToolTip="Reproducir / Pausar (Espacio)">
+                                    <Path Data="{StaticResource IconPlayGeometry}" Fill="{StaticResource Brass}"
+                                          Width="14" Height="14" Stretch="Uniform"/>
+                                </Button>
+                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                        Click="BtnEditorStepFwd_Click" ToolTip="Avanzar 1 segundo">
+                                    <Path Data="{StaticResource IconStepFwdGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Width="11" Height="11" Stretch="Uniform"/>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Tiempo Digital -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CurrentPositionString}" FontFamily="{StaticResource MonoFont}"
+                                           FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Bone}"/>
+                                <TextBlock Text=" / " FontFamily="{StaticResource MonoFont}" FontSize="14" Foreground="{StaticResource RuleBright}" Margin="4,0"/>
+                                <TextBlock Text="{Binding VideoDurationString}" FontFamily="{StaticResource MonoFont}"
+                                           FontSize="14" Foreground="{StaticResource SageDim}"/>
+                            </StackPanel>
+
+                            <!-- Volumen de escucha del monitor -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Vol" FontSize="11" Foreground="{StaticResource SageDim}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <Slider x:Name="EditorVolumeSlider" Style="{StaticResource VolumeSliderStyle}" Width="75"
+                                        Minimum="0" Maximum="1" Value="1" ValueChanged="EditorVolumeSlider_ValueChanged"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Volumen del monitor"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <!-- Barra de herramientas de la línea de tiempo -->
+                    <Border Grid.Row="2" Background="{StaticResource Deck}" CornerRadius="3"
+                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="1"
+                            Padding="12,8" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Botón + Añadir audio en cabezal -->
+                            <Button Style="{StaticResource MarkerButton}" Click="AddAudioClip_Click"
+                                    ToolTip="Añade un archivo de audio o locución en el segundo exacto donde está el cabezal de reproducción">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconPlusGeometry}" Fill="{StaticResource Brass}" Width="12" Height="12" Stretch="Uniform" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Añadir audio en cabezal" FontWeight="SemiBold" Foreground="{StaticResource Bone}"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Zoom de la línea de tiempo -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                                <TextBlock Text="Zoom:" FontSize="11.5" Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Button Style="{StaticResource QuietButton}" Padding="7,4" Margin="0,0,4,0"
+                                        Command="{Binding SetZoomCommand}" CommandParameter="0.7" Content="Ajustar" ToolTip="Ajustar video completo a la ventana"/>
+                                <Button Style="{StaticResource QuietButton}" Padding="7,4" Margin="0,0,4,0"
+                                        Command="{Binding SetZoomCommand}" CommandParameter="1.2" Content="1x" ToolTip="Escala estándar"/>
+                                <Button Style="{StaticResource QuietButton}" Padding="7,4" Margin="0,0,4,0"
+                                        Command="{Binding SetZoomCommand}" CommandParameter="2.5" Content="2.5x" ToolTip="Zoom medio"/>
+                                <Button Style="{StaticResource QuietButton}" Padding="7,4"
+                                        Command="{Binding SetZoomCommand}" CommandParameter="5.0" Content="5x" ToolTip="Zoom máximo fotograma a fotograma"/>
+                            </StackPanel>
+
+                            <!-- Inspector rápido del clip seleccionado -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                        Visibility="{Binding HasSelectedClip, Converter={StaticResource BoolToVis}}">
+                                <Rectangle Width="1" Height="18" Fill="{StaticResource Rule}" Margin="12,0,14,0"/>
+                                <TextBlock Text="{Binding SelectedClipFileName}" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource BrassLit}"
+                                           MaxWidth="160" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding SelectedAudioClip.FormattedStartTime, StringFormat='{} ({0})'}"
+                                           FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}"
+                                           VerticalAlignment="Center" Margin="5,0,10,0"/>
+
+                                <!-- Microajustes de posición -->
+                                <Button Style="{StaticResource TransportGlyph}" Width="24" Height="24"
+                                        Command="{Binding NudgeSelectedClipBackwardCommand}" ToolTip="Mover medio segundo antes (-0.5s)">
+                                    <TextBlock Text="◀" FontSize="9" Foreground="{StaticResource Sage}"/>
+                                </Button>
+                                <Button Style="{StaticResource TransportGlyph}" Width="24" Height="24"
+                                        Command="{Binding NudgeSelectedClipForwardCommand}" ToolTip="Mover medio segundo después (+0.5s)">
+                                    <TextBlock Text="▶" FontSize="9" Foreground="{StaticResource Sage}"/>
+                                </Button>
+
+                                <!-- Volumen de este clip -->
+                                <TextBlock Text="Vol:" FontSize="11" Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                <Slider Style="{StaticResource VolumeSliderStyle}" Width="60"
+                                        Minimum="0" Maximum="2" Value="{Binding SelectedAudioClip.Volume, Mode=TwoWay}"
+                                        VerticalAlignment="Center" ToolTip="Volumen de esta locución (0% a 200%)"/>
+
+                                <!-- Escuchar / Borrar -->
+                                <Button Style="{StaticResource TransportGlyph}" Width="24" Height="24" Margin="6,0,0,0"
+                                        Command="{Binding ToggleClipPreviewCommand}" CommandParameter="{Binding SelectedAudioClip}"
+                                        ToolTip="Escuchar este fragmento">
+                                    <Path Data="{StaticResource IconPlayGeometry}" Fill="{StaticResource Sage}" Width="10" Height="10" Stretch="Uniform"/>
+                                </Button>
+                                <Button Style="{StaticResource DangerActionButton}" Padding="5,3" Margin="6,0,0,0"
+                                        Command="{Binding DeleteSelectedClipCommand}" ToolTip="Eliminar esta locución">
+                                    <Path Data="{StaticResource IconTrashGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Width="10" Height="10" Stretch="Uniform"/>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Botón de Exportar Montaje -->
+                            <Button Grid.Column="3" Style="{StaticResource SuccessRenderButton}"
+                                    Command="{Binding ExportTimelineVideoCommand}"
+                                    ToolTip="Exporta el video completo con las locuciones sincronizadas exactamente como están en la pista (sin pérdida de calidad de video)">
+                                <TextBlock Text="Exportar video editado" FontWeight="SemiBold"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Mesa de Tiempo Multipista (Timeline interactivo) -->
+                    <Border Grid.Row="3" Background="{StaticResource Gate}" CornerRadius="3"
+                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <!-- Cabeceras fijas de pistas -->
+                                <ColumnDefinition Width="150"/>
+                                <!-- Pistas desplazables horizontalmente -->
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Cabeceras de Pistas (Izquierda) -->
+                            <Grid Grid.Column="0" Background="#141815">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="26"/>
+                                    <RowDefinition Height="46"/>
+                                    <RowDefinition Height="64"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Header de tiempo -->
+                                <Border Grid.Row="0" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,1,1" Padding="10,0">
+                                    <TextBlock Text="TIEMPO" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource SageDim}" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- Cabecera Pista 1: Video -->
+                                <Border Grid.Row="1" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,1,1"
+                                        Padding="8,4" Background="#181F1B">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconClapperGeometry}" Fill="{StaticResource Sage}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="P1 · VIDEO" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Bone}"/>
+                                        </StackPanel>
+                                        <Grid Grid.Row="1" Margin="0,3,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Fondo" FontSize="9.5" Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Grid.Column="1" Style="{StaticResource VolumeSliderStyle}"
+                                                    Minimum="0" Maximum="1" Value="{Binding MainVolume, Mode=TwoWay}"
+                                                    ToolTip="Volumen del audio original del video (0 = silencio)"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Cabecera Pista 2: Locuciones -->
+                                <Border Grid.Row="2" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,1,1"
+                                        Padding="8,4" Background="#161C18">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconMusicGeometry}" Fill="{StaticResource Brass}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="P2 · VOCES" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brass}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,3,0,0">
+                                            <TextBlock Text="{Binding TotalAudioClipsCount, StringFormat='{}{0} audios'}"
+                                                       FontSize="10" Foreground="{StaticResource SageDim}" VerticalAlignment="Center"/>
+                                            <Button Style="{StaticResource TransportGlyph}" Width="18" Height="18" Margin="8,0,0,0"
+                                                    Click="AddAudioClip_Click" ToolTip="Añadir audio en el cabezal">
+                                                <Path Data="{StaticResource IconPlusGeometry}" Fill="{StaticResource BrassLit}" Width="8" Height="8" Stretch="Uniform"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Espacio inferior -->
+                                <Border Grid.Row="3" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,1,0" Background="#121613"/>
+                            </Grid>
+
+                            <!-- Área de Pistas con Regla Desplazable (Derecha) -->
+                            <ScrollViewer x:Name="EditorTimelineScrollViewer" Grid.Column="1"
+                                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                          SizeChanged="EditorTimelineScrollViewer_SizeChanged"
+                                          ScrollChanged="EditorTimelineScrollViewer_ScrollChanged">
+                                <Grid x:Name="TimelineContentGrid" Width="{Binding TimelineTotalWidth, Mode=OneWay}" MinWidth="500" HorizontalAlignment="Left">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="26"/>
+                                        <RowDefinition Height="46"/>
+                                        <RowDefinition Height="64"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Regla de tiempo interactiva -->
+                                    <Border Grid.Row="0" Background="#111512" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                            MouseLeftButtonDown="TimelineRuler_MouseLeftButtonDown"
+                                            MouseMove="TimelineRuler_MouseMove"
+                                            MouseLeftButtonUp="TimelineRuler_MouseLeftButtonUp">
+                                        <Canvas x:Name="TimelineRulerCanvas" Height="26" ClipToBounds="True" IsHitTestVisible="False"/>
+                                    </Border>
+
+                                    <!-- Pista 1: Tira de Video continuo -->
+                                    <Border Grid.Row="1" Background="#151B17" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                            MouseLeftButtonDown="TimelineTrack_MouseLeftButtonDown">
+                                        <Border x:Name="VideoTrackStrip" Background="#212A24" BorderBrush="#35443A" BorderThickness="1"
+                                                CornerRadius="2" Margin="0,4,0,4" HorizontalAlignment="Left"
+                                                Width="{Binding TimelineTotalWidth, Mode=OneWay}">
+                                            <Grid Margin="10,0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="🎬 " FontSize="11" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding VideoFileName}" FontWeight="SemiBold" FontSize="11.5"
+                                                               Foreground="{StaticResource Bone}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding VideoDurationString, StringFormat='{} ({0})'}"
+                                                               FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                                               Foreground="{StaticResource Sage}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </Border>
+
+                                    <!-- Pista 2: Pista de Locuciones con Bloques Arrastrables -->
+                                    <Border Grid.Row="2" Background="#0F1310" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                            MouseLeftButtonDown="TimelineTrack_MouseLeftButtonDown">
+                                        <Canvas x:Name="AudioClipsCanvas" Height="64" ClipToBounds="True"/>
+                                    </Border>
+
+                                    <!-- Fondo inferior -->
+                                    <Border Grid.Row="3" Background="#0D100E"/>
+
+                                    <!-- Cabezal / Aguja de Reproducción (Playhead) -->
+                                    <Canvas x:Name="PlayheadOverlayCanvas" Grid.RowSpan="4" ClipToBounds="False" IsHitTestVisible="False">
+                                        <!-- Cabezal superior (marcador diamante de latón) -->
+                                        <Path x:Name="PlayheadMarker" Data="M -7,0 L 7,0 L 7,12 L 0,22 L -7,12 Z"
+                                              Fill="{StaticResource Brass}" Stroke="{StaticResource BrassLit}" StrokeThickness="1"/>
+                                        <!-- Línea vertical que atraviesa todas las pistas -->
+                                        <Line x:Name="PlayheadLine" X1="0" Y1="14" X2="0" Y2="240"
+                                              Stroke="{StaticResource Brass}" StrokeThickness="1.5"/>
+                                    </Canvas>
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================================================== -->
+            <!-- MODO 3: UNIR VARIOS ARCHIVOS                          -->
+            <!-- ===================================================== -->
+            <TabItem x:Name="TabItemMerge">
+                <TabItem.Header>
+                    <TextBlock Text="Unir"/>
+                </TabItem.Header>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                            Padding="0,0,0,14" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Style="{StaticResource QuietButton}" Click="OpenFilesToMerge_Click" AutomationProperties.Name="Añadir videos">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconPlusGeometry}" Fill="{StaticResource Bone}" Width="13" Height="13" Stretch="Uniform" Margin="0,0,7,0"/>
+                                    <TextBlock Text="Añadir videos"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Grid.Column="1" Style="{StaticResource DangerActionButton}"
+                                    Command="{Binding ClearFilesToMergeCommand}"
+                                    Content="Vaciar la lista" Margin="10,0,0,0" Padding="11,8"/>
+
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="20,0"
+                                       Foreground="{StaticResource SageDim}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       Text="Suéltalos aquí. Se pegarán de arriba abajo, en el orden que dejes."/>
+
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource Slate}"
+                                       Text="{Binding TotalFilesToMergeCount, StringFormat='{}{0} en la lista'}"/>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,16">
+                        <ListBox ItemsSource="{Binding FilesToMerge}"
+                                 Background="Transparent" BorderThickness="0"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Row" Background="Transparent"
+                                            BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                                            Padding="4,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="34"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="{Binding Index}" FontFamily="{StaticResource MonoFont}"
+                                                       FontSize="13" Foreground="{StaticResource BrassDeep}" VerticalAlignment="Center"/>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,18,0">
+                                                <TextBlock Text="{Binding FileName}" FontSize="13" Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"/>
+                                                <!-- La ruta se corta a una medida legible: es el dato menos
+                                                     importante de la fila y no debe estirar el renglón. -->
+                                                <TextBlock Text="{Binding FilePath}" Foreground="{StaticResource SageDim}" FontSize="11"
+                                                           TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
+                                                           MaxWidth="560" HorizontalAlignment="Left"/>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding FormattedSize}" VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                                       Foreground="{StaticResource Slate}" Margin="0,0,18,0"/>
+
+                                            <StackPanel x:Name="Actions" Grid.Column="3" Orientation="Horizontal"
+                                                        VerticalAlignment="Center" Opacity="0.45">
+                                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                                        Command="{Binding DataContext.MoveFileUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Subirlo un puesto"
+                                                        CommandParameter="{Binding}" ToolTip="Subirlo un puesto">
+                                                    <Path Data="{StaticResource IconArrowUpGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="12" Height="12" Stretch="Uniform"/>
+                                                </Button>
+                                                <Button Style="{StaticResource TransportGlyph}" Width="28" Height="28"
+                                                        Command="{Binding DataContext.MoveFileDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Bajarlo un puesto"
+                                                        CommandParameter="{Binding}" ToolTip="Bajarlo un puesto">
+                                                    <Path Data="{StaticResource IconArrowDownGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="12" Height="12" Stretch="Uniform"/>
+                                                </Button>
+                                                <Button Style="{StaticResource DangerActionButton}" Padding="6,5" Margin="4,0,0,0"
+                                                        Command="{Binding DataContext.RemoveFileToMergeCommand, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="Quitarlo de la lista"
+                                                        CommandParameter="{Binding}" ToolTip="Quitarlo de la lista">
+                                                    <Path Data="{StaticResource IconTrashGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                          Width="12" Height="12" Stretch="Uniform"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                            <Setter TargetName="Row" Property="Background" Value="#1E2420"/>
+                                        </Trigger>
+                                        <Trigger SourceName="Row" Property="IsKeyboardFocusWithin" Value="True">
+                                            <Setter TargetName="Actions" Property="Opacity" Value="1"/>
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460"
+                                    Visibility="{Binding HasNoFilesToMerge, Converter={StaticResource BoolToVis}}">
+                            <Path Data="{StaticResource IconClapperGeometry}" Fill="{StaticResource RuleBright}"
+                                  Width="30" Height="30" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="Ningún video en la lista" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Bone}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Añade dos o más y ordénalos. Se pegan copiando el flujo original, así que la unión es instantánea."
+                                       FontSize="12" Foreground="{StaticResource Sage}" TextAlignment="Center"
+                                       TextWrapping="Wrap" Margin="0,8,0,0" LineHeight="18"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="2" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                <TextBlock Text="Se unen sin volver a comprimir" FontSize="13" Foreground="{StaticResource Bone}"/>
+                                <TextBlock Text="Los archivos deben compartir códec y resolución. Si alguno no encaja, te lo diremos antes de escribir nada."
+                                           Foreground="{StaticResource SageDim}" FontSize="11.5" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1" Style="{StaticResource SuccessRenderButton}"
+                                    Command="{Binding MergeFilesCommand}" Padding="24,12">
+                                <TextBlock Text="Unir y exportar"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================================================== -->
+            <!-- MODO 4: ACELERAR                                      -->
+            <!-- ===================================================== -->
+            <TabItem x:Name="TabItemSpeed">
+                <TabItem.Header>
+                    <TextBlock Text="Acelerar"/>
+                </TabItem.Header>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
+                            Padding="0,0,0,14" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Style="{StaticResource QuietButton}" Click="OpenSpeedVideo_Click" AutomationProperties.Name="Abrir video">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconFolderGeometry}" Fill="{StaticResource Bone}" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0"/>
+                                    <TextBlock Text="Abrir video"/>
+                                </StackPanel>
+                            </Button>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="18,0">
+                                <TextBlock Text="{Binding SpeedVideoFileName}" FontWeight="SemiBold" FontSize="14"
+                                           Foreground="{StaticResource Bone}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding SpeedVideoFilePath}" FontSize="11" Foreground="{StaticResource SageDim}"
+                                           TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding HasSpeedMetadata, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding SpeedResolution}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding SpeedVideoCodec}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding SpeedFps}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}" Margin="0,0,16,0"/>
+                                <TextBlock Text="{Binding SpeedFileSizeString}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource Slate}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <!-- Mesa vacía -->
+                        <StackPanel Visibility="{Binding HasNoSpeedVideo, Converter={StaticResource BoolToVis}}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="480">
+                            <Path Data="{StaticResource IconBoltGeometry}" Fill="{StaticResource RuleBright}"
+                                  Width="32" Height="32" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                            <TextBlock Text="Suelta aquí el video que quieres acelerar"
+                                       FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource Bone}"
+                                       HorizontalAlignment="Center" TextAlignment="Center"/>
+                            <TextBlock Text="El sonido se estira con el video y mantiene el tono: la voz no se vuelve aguda ni grave."
+                                       FontSize="12" Foreground="{StaticResource Sage}" TextAlignment="Center"
+                                       TextWrapping="Wrap" Margin="0,8,0,0" LineHeight="18"/>
+                        </StackPanel>
+
+                        <Grid Visibility="{Binding HasSpeedVideo, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="400" MinWidth="340" MaxWidth="480"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled" Margin="0,0,16,0">
+                                <StackPanel>
+
+                                    <!-- Lo que importa no es el multiplicador: es en qué se convierte -->
+                                    <Border Background="{StaticResource Deck}" CornerRadius="3" Padding="20,18" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <TextBlock Text="{Binding SpeedOriginalDurationString}"
+                                                           FontFamily="{StaticResource MonoFont}" FontSize="16"
+                                                           Foreground="{StaticResource SageDim}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+                                                <Rectangle Width="16" Height="1" Fill="{StaticResource RuleBright}" Margin="12,0,12,9" VerticalAlignment="Bottom"/>
+                                                <TextBlock Text="{Binding SpeedEstimatedDurationString}"
+                                                           FontFamily="{StaticResource MonoFont}" FontSize="27"
+                                                           Foreground="{StaticResource Bone}" VerticalAlignment="Bottom"/>
+                                            </StackPanel>
+                                            <TextBlock Foreground="{StaticResource Sage}" FontSize="12">
+                                                <Run Text="A"/>
+                                                <Run Text="{Binding SpeedMultiplierString, Mode=OneWay}" Foreground="{StaticResource Brass}" FontFamily="{StaticResource MonoFont}"/>
+                                                <Run Text="dura"/>
+                                                <Run Text="{Binding SpeedTimeDifferenceString, Mode=OneWay}" Foreground="{StaticResource Bone}"/>
+                                            </TextBlock>
+
+                                            <!-- Mando fino -->
+                                            <Grid Margin="0,20,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="0.25×" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                                                           Foreground="{StaticResource SageDim}" VerticalAlignment="Center"/>
+                                                <Slider Grid.Column="1" Style="{StaticResource VolumeSliderStyle}"
+                                                        Value="{Binding SpeedMultiplier, Mode=TwoWay}"
+                                                        Minimum="0.25" Maximum="8.0"
+                                                        SmallChange="0.05" LargeChange="0.25"
+                                                        Margin="12,0"
+                                                        ToolTip="Arrastra para afinar la velocidad"/>
+                                                <TextBlock Grid.Column="2" Text="8.00×" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                                                           Foreground="{StaticResource SageDim}" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <WrapPanel Margin="0,16,0,0">
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="0,50×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=0.5, Mode=TwoWay}" ToolTip="La mitad de velocidad"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="0,75×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=0.75, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="1,25×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=1.25, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="1,50×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=1.5, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="1,75×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=1.75, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="2,00×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=2.0, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="2,50×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=2.5, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="3,00×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=3.0, Mode=TwoWay}"/>
+                                                <RadioButton Style="{StaticResource PresetButton}" Content="4,00×" IsChecked="{Binding SpeedMultiplier, Converter={StaticResource SpeedPreset}, ConverterParameter=4.0, Mode=TwoWay}"/>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="{StaticResource Deck}" CornerRadius="3" Padding="20,18">
+                                        <StackPanel>
+                                            <TextBlock Text="Sonido" FontSize="12" Foreground="{StaticResource SageDim}" Margin="0,0,0,12"/>
+                                            <WrapPanel Margin="0,0,0,12">
+                                                <RadioButton Style="{StaticResource StudioChipRadio}" GroupName="SpeedAudioGroup"
+                                                             IsChecked="{Binding SpeedKeepAudio, Mode=TwoWay}"
+                                                             Content="Mantenerlo"/>
+                                                <RadioButton Style="{StaticResource StudioChipRadio}" GroupName="SpeedAudioGroup"
+                                                             IsChecked="{Binding SpeedMuteAudio, Mode=TwoWay}"
+                                                             Content="Quitarlo"/>
+                                            </WrapPanel>
+                                            <TextBlock Foreground="{StaticResource SageDim}" FontSize="11.5" TextWrapping="Wrap" LineHeight="17"
+                                                       Text="Mantenerlo estira la voz y la música al mismo ritmo que la imagen, sin cambiar el tono. Quitarlo deja el video mudo, que es lo habitual en un timelapse."/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Background="{StaticResource Gate}" CornerRadius="3"
+                                        Margin="0,0,0,12" ClipToBounds="True">
+                                    <Grid>
+                                        <MediaElement x:Name="SpeedVideoPlayer"
+                                                      LoadedBehavior="Manual"
+                                                      UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="SpeedVideoPlayer_MediaOpened"
+                                                      MediaFailed="SpeedVideoPlayer_MediaFailed"/>
+
+                                        <Border VerticalAlignment="Bottom" Background="#E60B0E0C" Padding="14,10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Button x:Name="BtnSpeedPlayPause" Style="{StaticResource PlayPauseButton}"
+                                                        Width="34" Height="34"
+                                                        Click="BtnSpeedPlayPause_Click" Margin="0,0,14,0"
+                                                        ToolTip="Reproducir" AutomationProperties.Name="Reproducir">
+                                                    <Path Data="{StaticResource IconPlayGeometry}" Fill="{StaticResource Gate}"
+                                                          Width="13" Height="13" Stretch="Uniform" Margin="2,0,0,0"/>
+                                                </Button>
+
+                                                <Slider x:Name="SpeedTimelineSlider" Grid.Column="1"
+                                                        Style="{StaticResource FilmstripSliderCompact}"
+                                                        ValueChanged="SpeedTimelineSlider_ValueChanged"
+                                                        PreviewMouseDown="SpeedTimelineSlider_PreviewMouseDown"
+                                                        PreviewMouseUp="SpeedTimelineSlider_PreviewMouseUp"
+                                                        VerticalAlignment="Center"/>
+
+                                                <TextBlock x:Name="TxtSpeedPlayerTime" Grid.Column="2"
+                                                           Text="00:00:00 / 00:00:00" FontSize="11.5" Foreground="{StaticResource Sage}"
+                                                           FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="1" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                            <TextBlock Text="Acelerar sí vuelve a comprimir el video" FontSize="13" Foreground="{StaticResource Bone}"/>
+                                            <TextBlock Foreground="{StaticResource SageDim}" FontSize="11.5" Margin="0,3,0,0" TextWrapping="Wrap">
+                                                <Run Text="Es el único modo que lo hace, porque hay que recalcular cada fotograma. Se codifica en H.264 con"/>
+                                                <Run Text="CRF 19" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Slate}"/>
+                                                <Run Text="y preajuste"/>
+                                                <Run Text="veryfast" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Slate}"/>
+                                                <Run Text="— la diferencia no se ve a simple vista."/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" Style="{StaticResource SuccessRenderButton}"
+                                                Command="{Binding ChangeSpeedCommand}" Padding="24,12">
+                                            <TextBlock Text="Acelerar y exportar"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

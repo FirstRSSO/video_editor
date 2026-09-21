@@ -1,8 +1,11 @@
 using System.Diagnostics;
+using RecortadorDeVideos.Application.Models;
+using RecortadorDeVideos.Application.UseCases.MergeVideos;
 using RecortadorDeVideos.Domain.Entities;
 using RecortadorDeVideos.Domain.Enums;
 using RecortadorDeVideos.Domain.ValueObjects;
 using RecortadorDeVideos.Infrastructure.FFmpeg;
+using RecortadorDeVideos.Infrastructure.FileSystem;
 
 namespace RecortadorDeVideos.Infrastructure.IntegrationTests;
 
@@ -13,6 +16,8 @@ public class FFmpegIntegrationTests : IDisposable
     private readonly FFmpegMediaAnalyzer _analyzer;
     private readonly FFmpegVideoTrimmer _trimmer;
     private readonly FFmpegAudioMuxer _muxer;
+    private readonly FFmpegVideoConcatenator _concatenator;
+    private readonly FFmpegVideoSpeedChanger _speedChanger;
     private readonly string _tempDirectory;
     private readonly string _testVideoPath;
     private readonly string _testAudioPath;
@@ -24,6 +29,8 @@ public class FFmpegIntegrationTests : IDisposable
         _analyzer = new FFmpegMediaAnalyzer(_locator, _runner);
         _trimmer = new FFmpegVideoTrimmer(_locator, _runner);
         _muxer = new FFmpegAudioMuxer(_locator, _runner);
+        _concatenator = new FFmpegVideoConcatenator(_locator, _runner);
+        _speedChanger = new FFmpegVideoSpeedChanger(_locator, _runner, _analyzer);
 
         _tempDirectory = Path.Combine(Path.GetTempPath(), "RecortadorTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDirectory);
@@ -145,6 +152,132 @@ public class FFmpegIntegrationTests : IDisposable
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
         Assert.True(File.Exists(outputPath));
+    }
+
+    [Fact]
+    public async Task AudioMuxer_ShouldOverlayPositionedClipsSuccessfully()
+    {
+        var outputPath = Path.Combine(_tempDirectory, "overlay_clips.mp4");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(4));
+        var clips = new List<AudioOverlayClip>
+        {
+            new(_testAudioPath, TimeSpan.FromSeconds(1), 0.9, "Locución 1"),
+            new(_testAudioPath, TimeSpan.FromSeconds(2.5), 1.0, "Locución 2")
+        };
+        var audioConfig = AudioTrackConfig.WithClips(clips, keepOriginalAudio: true, mainVolume: 0.3);
+
+        var result = await _muxer.ProcessAudioAsync(_testVideoPath, timeRange, audioConfig, outputPath);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputPath));
+
+        var meta = await _analyzer.AnalyzeAsync(outputPath);
+        Assert.True(meta.IsSuccess);
+        Assert.Equal("aac", meta.Value!.AudioCodec);
+        Assert.True(meta.Value!.Duration.TotalSeconds >= 3.5 && meta.Value!.Duration.TotalSeconds <= 4.5);
+    }
+
+    [Fact]
+    public async Task VideoConcatenator_ShouldConcatenateVideosLosslessly()
+    {
+        // 1. Recortar dos partes del video de prueba (0-2s y 2-4s)
+        var part1 = Path.Combine(_tempDirectory, "concat_part1.mp4");
+        var part2 = Path.Combine(_tempDirectory, "concat_part2.mp4");
+        var mergedOutput = Path.Combine(_tempDirectory, "concat_merged.mp4");
+
+        var job1 = new CutJob(_testVideoPath, TimeRange.Create(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(2)), part1);
+        var job2 = new CutJob(_testVideoPath, TimeRange.Create(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)), part2);
+
+        var cutRes1 = await _trimmer.TrimAsync(job1);
+        var cutRes2 = await _trimmer.TrimAsync(job2);
+        Assert.True(cutRes1.IsSuccess);
+        Assert.True(cutRes2.IsSuccess);
+
+        // 2. Concatenar ambas partes
+        var mergeJob = new MergeJob(new[] { part1, part2 }, mergedOutput);
+        var mergeResult = await _concatenator.ConcatenateAsync(mergeJob);
+
+        Assert.True(mergeResult.IsSuccess, mergeResult.ErrorMessage);
+        Assert.True(File.Exists(mergedOutput));
+
+        var meta = await _analyzer.AnalyzeAsync(mergedOutput);
+        Assert.True(meta.IsSuccess);
+        Assert.True(meta.Value!.Duration.TotalSeconds >= 3.0 && meta.Value!.Duration.TotalSeconds <= 5.0, $"Actual duration was: {meta.Value!.Duration.TotalSeconds}");
+    }
+
+    [Fact]
+    public async Task MergeVideosUseCase_ShouldCutAndMergeMultipleSegments()
+    {
+        var fileSystem = new LocalFileSystemService();
+        var useCase = new MergeVideosUseCase(_trimmer, _muxer, _concatenator, fileSystem);
+
+        var mergedOutput = Path.Combine(_tempDirectory, "usecase_multimerged.mp4");
+        var segments = new List<TimeSpanPairDto>
+        {
+            new(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1.5)),
+            new(TimeSpan.FromSeconds(2.5), TimeSpan.FromSeconds(4.5))
+        };
+
+        var request = new MergeSegmentsRequestDto(
+            SourceVideoPath: _testVideoPath,
+            Segments: segments,
+            DestinationVideoPath: mergedOutput,
+            AudioMode: AudioMode.KeepOriginal);
+
+        var result = await useCase.ExecuteMergeSegmentsAsync(request);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(mergedOutput));
+
+        var meta = await _analyzer.AnalyzeAsync(mergedOutput);
+        Assert.True(meta.IsSuccess);
+        // Segmento 1: 1.5s + Segmento 2: 2.0s = ~3.5s
+        Assert.True(meta.Value!.Duration.TotalSeconds >= 2.0 && meta.Value!.Duration.TotalSeconds <= 6.0, $"Actual duration was: {meta.Value!.Duration.TotalSeconds}");
+    }
+
+    [Fact]
+    public async Task SpeedChanger_ShouldSpeedUpVideoAndAudio_2x()
+    {
+        var speedOutput = Path.Combine(_tempDirectory, "speed_2x.mp4");
+        var job = new SpeedJob(
+            sourceVideoPath: _testVideoPath,
+            destinationVideoPath: speedOutput,
+            speedMultiplier: 2.0,
+            originalDuration: TimeSpan.FromSeconds(5),
+            muteAudio: false);
+
+        var result = await _speedChanger.ChangeSpeedAsync(job);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(speedOutput));
+
+        var meta = await _analyzer.AnalyzeAsync(speedOutput);
+        Assert.True(meta.IsSuccess);
+        // Video de 5s a 2x debe durar ~2.5s
+        Assert.True(meta.Value!.Duration.TotalSeconds >= 2.2 && meta.Value!.Duration.TotalSeconds <= 2.8,
+            $"Expected ~2.5s, actual: {meta.Value!.Duration.TotalSeconds}");
+        Assert.Equal("aac", meta.Value!.AudioCodec);
+    }
+
+    [Fact]
+    public async Task SpeedChanger_ShouldMuteAudioWhenRequested()
+    {
+        var speedOutput = Path.Combine(_tempDirectory, "speed_muted.mp4");
+        var job = new SpeedJob(
+            sourceVideoPath: _testVideoPath,
+            destinationVideoPath: speedOutput,
+            speedMultiplier: 1.5,
+            originalDuration: TimeSpan.FromSeconds(5),
+            muteAudio: true);
+
+        var result = await _speedChanger.ChangeSpeedAsync(job);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(speedOutput));
+
+        var meta = await _analyzer.AnalyzeAsync(speedOutput);
+        Assert.True(meta.IsSuccess);
+        Assert.True(string.IsNullOrWhiteSpace(meta.Value!.AudioCodec), "Expected no audio track.");
     }
 
     public void Dispose()
