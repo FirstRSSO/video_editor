@@ -80,6 +80,13 @@ public class FFmpegMediaAnalyzer : IMediaAnalyzer
                     else if (codecType == "audio" && audioCodec == null)
                     {
                         if (stream.TryGetProperty("codec_name", out var ac)) audioCodec = ac.GetString();
+                        if (duration == TimeSpan.Zero &&
+                            stream.TryGetProperty("duration", out var stDurProp) &&
+                            double.TryParse(stDurProp.GetString(), CultureInfo.InvariantCulture, out var stDurSec) &&
+                            stDurSec > 0)
+                        {
+                            duration = TimeSpan.FromSeconds(stDurSec);
+                        }
                     }
                 }
             }

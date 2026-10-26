@@ -414,6 +414,47 @@
 
                                         </StackPanel>
                                     </Grid>
+
+                                    <!-- Fila de organización: nombre del nuevo video a guardar -->
+                                    <Border Margin="0,12,0,0" Padding="12,8" Background="#131915" BorderBrush="{StaticResource RuleFaint}" BorderThickness="1" CornerRadius="3"
+                                            Visibility="{Binding HasVideo, Converter={StaticResource BoolToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <Path Data="{StaticResource IconScissorsGeometry}" Fill="{StaticResource Brass}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,7,0"/>
+                                                <TextBlock Text="Guardar corte como:" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource Bone}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <TextBox Grid.Column="1" Text="{Binding OutputFileName, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource StudioTextBox}" Height="27" VerticalContentAlignment="Center"
+                                                     ToolTip="Escribe el nombre con el que se guardará el nuevo video recortado (sin extensión)"/>
+
+                                            <TextBlock Grid.Column="2" Text="{Binding VideoExtension}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                       Foreground="{StaticResource SageDim}" VerticalAlignment="Center" Margin="6,0,12,0"/>
+
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource MarkerButton}" Command="{Binding BrowseSaveAsCommand}"
+                                                        ToolTip="Elegir carpeta y nombre exacto con el explorador de archivos" Margin="0,0,8,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="{StaticResource IconFolderGeometry}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                              Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0"/>
+                                                        <TextBlock Text="Guardar como…"/>
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <CheckBox Style="{StaticResource StudioCheckBox}" IsChecked="{Binding AskSaveLocationOnTrim, Mode=TwoWay}"
+                                                          ToolTip="Preguntar siempre nombre y carpeta al pulsar 'Guardar este corte'">
+                                                    <TextBlock Text="Preguntar siempre"/>
+                                                </CheckBox>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
                                 </StackPanel>
                             </Border>
 
@@ -931,7 +972,7 @@
                         <!-- 2: Barra de herramientas de la línea de tiempo -->
                         <RowDefinition Height="Auto"/>
                         <!-- 3: Línea de tiempo multipista interactiva -->
-                        <RowDefinition Height="185" MinHeight="150" MaxHeight="320"/>
+                        <RowDefinition x:Name="TimelinePanelRowDef" Height="190" MinHeight="160" MaxHeight="450"/>
                     </Grid.RowDefinitions>
 
                     <!-- Archivo en montaje -->
@@ -1195,7 +1236,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="26"/>
                                     <RowDefinition Height="46"/>
-                                    <RowDefinition Height="64"/>
+                                    <RowDefinition x:Name="AudioHeaderRowDef" Height="64"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
@@ -1230,27 +1271,10 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Cabecera Pista 2: Locuciones -->
+                                <!-- Cabecera Pistas de Audio (Multicarril estilo Camtasia) -->
                                 <Border Grid.Row="2" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,1,1"
-                                        Padding="8,4" Background="#161C18">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="{StaticResource IconMusicGeometry}" Fill="{StaticResource Brass}" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0"/>
-                                            <TextBlock Text="P2 · VOCES" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brass}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,3,0,0">
-                                            <TextBlock Text="{Binding TotalAudioClipsCount, StringFormat='{}{0} audios'}"
-                                                       FontSize="10" Foreground="{StaticResource SageDim}" VerticalAlignment="Center"/>
-                                            <Button Style="{StaticResource TransportGlyph}" Width="18" Height="18" Margin="8,0,0,0"
-                                                    Click="AddAudioClip_Click" ToolTip="Añadir audio en el cabezal">
-                                                <Path Data="{StaticResource IconPlusGeometry}" Fill="{StaticResource BrassLit}" Width="8" Height="8" Stretch="Uniform"/>
-                                            </Button>
-                                        </StackPanel>
-                                    </Grid>
+                                        Background="#161C18">
+                                    <StackPanel x:Name="AudioTrackHeadersPanel" VerticalAlignment="Top"/>
                                 </Border>
 
                                 <!-- Espacio inferior -->
@@ -1266,7 +1290,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="26"/>
                                         <RowDefinition Height="46"/>
-                                        <RowDefinition Height="64"/>
+                                        <RowDefinition x:Name="AudioTrackRowDef" Height="64"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
 
@@ -1297,7 +1321,7 @@
                                         </Border>
                                     </Border>
 
-                                    <!-- Pista 2: Pista de Locuciones con Bloques Arrastrables -->
+                                    <!-- Pista 2: Pista de Locuciones con Bloques Arrastrables (Multicarril estilo Camtasia) -->
                                     <Border Grid.Row="2" Background="#0F1310" BorderBrush="{StaticResource RuleFaint}" BorderThickness="0,0,0,1"
                                             MouseLeftButtonDown="TimelineTrack_MouseLeftButtonDown">
                                         <Canvas x:Name="AudioClipsCanvas" Height="64" ClipToBounds="True"/>

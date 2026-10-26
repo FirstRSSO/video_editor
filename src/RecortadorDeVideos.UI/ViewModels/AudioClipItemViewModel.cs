@@ -17,17 +17,37 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
     private bool _isPlaying;
     private MediaPlayer? _previewPlayer;
     private DispatcherTimer? _previewTimer;
+    private DateTime _suppressSyncDriftUntil = DateTime.MinValue;
+    private TimeSpan _lastSyncTargetAudioPosition = TimeSpan.MinValue;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private TimeSpan _inPoint = TimeSpan.Zero;
     private TimeSpan _duration = TimeSpan.FromSeconds(5);
-    private TimeSpan _originalDuration = TimeSpan.FromSeconds(5);
+    private TimeSpan _originalDuration = TimeSpan.Zero;
     private bool _hasExplicitDuration = false;
 
     private bool _isSelected;
     private double _timelineLeft;
     private double _timelineWidth = 80;
+    private int _trackIndex = 0;
+
+    public int TrackIndex
+    {
+        get => _trackIndex;
+        set
+        {
+            var clamped = Math.Max(0, value);
+            if (_trackIndex != clamped)
+            {
+                _trackIndex = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TrackDisplayName));
+            }
+        }
+    }
+
+    public string TrackDisplayName => $"Pista {_trackIndex + 2}";
 
     public AudioClipItemViewModel(
         int index,
@@ -37,13 +57,15 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         string? label = null,
         TimeSpan? duration = null,
         TimeSpan? inPoint = null,
-        TimeSpan? originalDuration = null)
+        TimeSpan? originalDuration = null,
+        int trackIndex = 0)
     {
         _index = index;
         _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
         _startTime = startTime < TimeSpan.Zero ? TimeSpan.Zero : startTime;
         _volume = Math.Clamp(volume, 0.0, 2.0);
         _label = label;
+        _trackIndex = Math.Max(0, trackIndex);
 
         if (inPoint.HasValue && inPoint.Value >= TimeSpan.Zero)
         {
@@ -77,10 +99,23 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         get => _filePath;
         set
         {
-            _filePath = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(FileName));
-            OnPropertyChanged(nameof(DisplayName));
+            if (_filePath != value)
+            {
+                _filePath = value;
+                if (_previewPlayer != null)
+                {
+                    try
+                    {
+                        _previewPlayer.Stop();
+                        _previewPlayer.Close();
+                    }
+                    catch { }
+                    _previewPlayer = null;
+                }
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FileName));
+                OnPropertyChanged(nameof(DisplayName));
+            }
         }
     }
 
@@ -192,16 +227,14 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
             if (_duration < TimeSpan.FromMilliseconds(200))
                 _duration = TimeSpan.FromMilliseconds(200);
         }
+        else if (_inPoint + _duration > _originalDuration)
+        {
+            _duration = _originalDuration - _inPoint;
+            if (_duration < TimeSpan.FromMilliseconds(200))
+                _duration = TimeSpan.FromMilliseconds(200);
+        }
 
-        OnPropertyChanged(nameof(OriginalDuration));
-        OnPropertyChanged(nameof(FormattedOriginalDuration));
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+        NotifyAllTrimProperties();
     }
 
     public TimeSpan EndTime => StartTime + Duration;
@@ -250,7 +283,7 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         set { _timelineWidth = value; OnPropertyChanged(); }
     }
 
-    public void UpdateTimelineBounds(double pixelsPerSecond, double minWidth = 70.0)
+    public void UpdateTimelineBounds(double pixelsPerSecond, double minWidth = 16.0)
     {
         TimelineLeft = StartTime.TotalSeconds * pixelsPerSecond;
         TimelineWidth = Math.Max(minWidth, Duration.TotalSeconds * pixelsPerSecond);
@@ -285,7 +318,7 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// Recorta el inicio del clip arrastrando la manija izquierda.
-    /// Ajusta StartTime, InPoint y reduce Duration proporcionalmente.
+    /// Ajusta StartTime, InPoint y reduce/aumenta Duration proporcionalmente.
     /// </summary>
     public void TrimStartByDelta(double deltaSeconds, TimeSpan maxLimit)
     {
@@ -296,14 +329,6 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         var proposedInPoint = InPoint + delta;
         var proposedDuration = Duration - delta;
 
-        if (proposedStartTime < TimeSpan.Zero)
-        {
-            var diff = TimeSpan.Zero - StartTime;
-            proposedStartTime = TimeSpan.Zero;
-            proposedInPoint = InPoint + diff;
-            proposedDuration = Duration - diff;
-        }
-
         if (proposedInPoint < TimeSpan.Zero)
         {
             var diff = TimeSpan.Zero - InPoint;
@@ -312,9 +337,20 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
             proposedDuration = Duration - diff;
         }
 
+        if (proposedStartTime < TimeSpan.Zero)
+        {
+            var diff = TimeSpan.Zero - StartTime;
+            proposedStartTime = TimeSpan.Zero;
+            proposedInPoint = InPoint + diff;
+            proposedDuration = Duration - diff;
+        }
+
         if (proposedDuration < minDuration)
         {
-            return;
+            var diff = Duration - minDuration;
+            proposedDuration = minDuration;
+            proposedStartTime = StartTime + diff;
+            proposedInPoint = InPoint + diff;
         }
 
         if (maxLimit > TimeSpan.Zero && proposedStartTime > maxLimit)
@@ -327,17 +363,7 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         _duration = proposedDuration;
         _hasExplicitDuration = true;
 
-        OnPropertyChanged(nameof(StartTime));
-        OnPropertyChanged(nameof(FormattedStartTime));
-        OnPropertyChanged(nameof(InPoint));
-        OnPropertyChanged(nameof(FormattedInPoint));
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+        NotifyAllTrimProperties();
     }
 
     /// <summary>
@@ -363,61 +389,64 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         _duration = proposedDuration;
         _hasExplicitDuration = true;
 
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+        NotifyAllTrimProperties();
     }
 
     /// <summary>
-    /// Recorta el inicio del clip al cabezal de reproducción actual.
+    /// Recorta o extiende el inicio del clip al cabezal de reproducción actual.
     /// </summary>
     public bool TrimStartAtPlayhead(TimeSpan playheadTime)
     {
-        if (playheadTime <= StartTime || playheadTime >= EndTime - TimeSpan.FromMilliseconds(200))
+        var minDuration = TimeSpan.FromMilliseconds(200);
+        if (playheadTime >= EndTime - minDuration)
             return false;
 
-        var delta = playheadTime - StartTime;
-        _startTime = playheadTime;
-        _inPoint += delta;
-        _duration -= delta;
-        _hasExplicitDuration = true;
+        if (playheadTime >= StartTime)
+        {
+            var delta = playheadTime - StartTime;
+            _startTime = playheadTime;
+            _inPoint += delta;
+            _duration -= delta;
+        }
+        else
+        {
+            var extension = StartTime - playheadTime;
+            if (_inPoint < extension)
+            {
+                extension = _inPoint;
+            }
+            if (extension <= TimeSpan.Zero) return false;
 
-        OnPropertyChanged(nameof(StartTime));
-        OnPropertyChanged(nameof(FormattedStartTime));
-        OnPropertyChanged(nameof(InPoint));
-        OnPropertyChanged(nameof(FormattedInPoint));
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+            _startTime -= extension;
+            _inPoint -= extension;
+            _duration += extension;
+        }
+
+        _hasExplicitDuration = true;
+        NotifyAllTrimProperties();
         return true;
     }
 
     /// <summary>
-    /// Recorta el final del clip al cabezal de reproducción actual.
+    /// Recorta o extiende el final del clip al cabezal de reproducción actual.
     /// </summary>
     public bool TrimEndAtPlayhead(TimeSpan playheadTime)
     {
-        if (playheadTime <= StartTime + TimeSpan.FromMilliseconds(200) || playheadTime >= EndTime)
+        var minDuration = TimeSpan.FromMilliseconds(200);
+        if (playheadTime <= StartTime + minDuration)
             return false;
 
-        _duration = playheadTime - StartTime;
+        var proposedDuration = playheadTime - StartTime;
+        if (_originalDuration > TimeSpan.Zero && _inPoint + proposedDuration > _originalDuration)
+        {
+            proposedDuration = _originalDuration - _inPoint;
+            if (proposedDuration < minDuration) proposedDuration = minDuration;
+        }
+
+        _duration = proposedDuration;
         _hasExplicitDuration = true;
 
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+        NotifyAllTrimProperties();
         return true;
     }
 
@@ -441,13 +470,7 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         _duration = firstPieceDuration;
         _hasExplicitDuration = true;
 
-        OnPropertyChanged(nameof(Duration));
-        OnPropertyChanged(nameof(FormattedDuration));
-        OnPropertyChanged(nameof(EndTime));
-        OnPropertyChanged(nameof(FormattedEndTime));
-        OnPropertyChanged(nameof(FormattedRange));
-        OnPropertyChanged(nameof(IsTrimmed));
-        OnPropertyChanged(nameof(FormattedTrimSummary));
+        NotifyAllTrimProperties();
 
         // Crear la segunda mitad
         var secondClip = new AudioClipItemViewModel(
@@ -458,7 +481,8 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
             label: !string.IsNullOrWhiteSpace(Label) ? $"{Label} (Parte 2)" : null,
             duration: secondPieceDuration,
             inPoint: secondPieceInPoint,
-            originalDuration: OriginalDuration);
+            originalDuration: OriginalDuration,
+            trackIndex: TrackIndex);
 
         return secondClip;
     }
@@ -475,6 +499,13 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         }
         _hasExplicitDuration = false;
 
+        NotifyAllTrimProperties();
+    }
+
+    private void NotifyAllTrimProperties()
+    {
+        OnPropertyChanged(nameof(StartTime));
+        OnPropertyChanged(nameof(FormattedStartTime));
         OnPropertyChanged(nameof(InPoint));
         OnPropertyChanged(nameof(FormattedInPoint));
         OnPropertyChanged(nameof(Duration));
@@ -511,6 +542,30 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         private set { _isPlaying = value; OnPropertyChanged(); }
     }
 
+    private MediaPlayer GetOrCreatePlayer()
+    {
+        if (_previewPlayer == null)
+        {
+            _previewPlayer = new MediaPlayer();
+            _previewPlayer.MediaOpened += PreviewPlayer_MediaOpened;
+            _previewPlayer.MediaEnded += PreviewPlayer_MediaEnded;
+            _previewPlayer.Open(new Uri(FilePath));
+        }
+        return _previewPlayer;
+    }
+
+    private void PreviewPlayer_MediaOpened(object? sender, EventArgs e)
+    {
+        if (_previewPlayer != null && _previewPlayer.NaturalDuration.HasTimeSpan)
+        {
+            var natDur = _previewPlayer.NaturalDuration.TimeSpan;
+            if (natDur > TimeSpan.Zero && (_originalDuration <= TimeSpan.Zero || _originalDuration == TimeSpan.FromSeconds(5)))
+            {
+                SetOriginalDuration(natDur);
+            }
+        }
+    }
+
     public void TogglePreview()
     {
         if (IsPlaying)
@@ -529,20 +584,19 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            _previewPlayer ??= new MediaPlayer();
-            _previewPlayer.MediaEnded -= PreviewPlayer_MediaEnded;
-            _previewPlayer.MediaEnded += PreviewPlayer_MediaEnded;
-            _previewPlayer.Open(new Uri(FilePath));
-            _previewPlayer.Position = InPoint;
-            _previewPlayer.Volume = Math.Clamp(Volume, 0.0, 1.0);
-            _previewPlayer.Play();
+            var player = GetOrCreatePlayer();
+            player.Position = InPoint;
+            player.Volume = Math.Clamp(Volume, 0.0, 1.0);
+            player.Play();
             IsPlaying = true;
+            _suppressSyncDriftUntil = DateTime.UtcNow.AddMilliseconds(500);
+            _lastSyncTargetAudioPosition = InPoint;
 
             // Timer para detener exactamente al terminar la porción recortada
             _previewTimer?.Stop();
             _previewTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(100)
+                Interval = TimeSpan.FromMilliseconds(50)
             };
             var previewEndTime = InPoint + Duration;
             _previewTimer.Tick += (s, e) =>
@@ -575,17 +629,16 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
 
             if (_previewPlayer != null)
             {
-                _previewPlayer.Stop();
-                _previewPlayer.Close();
+                _previewPlayer.Pause();
+                _previewPlayer.Position = InPoint;
             }
         }
-        catch
-        {
-            // Ignorar errores al detener preview
-        }
+        catch { }
         finally
         {
             IsPlaying = false;
+            _suppressSyncDriftUntil = DateTime.MinValue;
+            _lastSyncTargetAudioPosition = TimeSpan.MinValue;
         }
     }
 
@@ -599,36 +652,73 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         {
             var offsetFromClipStart = currentVideoPosition - StartTime;
             var targetAudioPosition = InPoint + offsetFromClipStart;
+            if (targetAudioPosition < TimeSpan.Zero) targetAudioPosition = TimeSpan.Zero;
+
+            var maxAllowed = _originalDuration > TimeSpan.Zero
+                ? _originalDuration
+                : (_previewPlayer?.NaturalDuration.HasTimeSpan == true ? _previewPlayer.NaturalDuration.TimeSpan : TimeSpan.Zero);
+
+            if (maxAllowed > TimeSpan.Zero && targetAudioPosition >= maxAllowed - TimeSpan.FromMilliseconds(80))
+            {
+                StopPlayback();
+                return;
+            }
 
             try
             {
-                if (_previewPlayer == null)
+                // Si había un timer de preview individual corriendo, cancelarlo
+                if (_previewTimer != null)
                 {
-                    _previewPlayer = new MediaPlayer();
-                    _previewPlayer.MediaEnded += PreviewPlayer_MediaEnded;
-                    _previewPlayer.Open(new Uri(FilePath));
+                    _previewTimer.Stop();
+                    _previewTimer = null;
                 }
 
-                _previewPlayer.Volume = Math.Clamp(Volume * masterVolume, 0.0, 1.0);
+                var player = GetOrCreatePlayer();
+                player.Volume = Math.Clamp(Volume * masterVolume, 0.0, 1.0);
 
                 if (!IsPlaying)
                 {
-                    _previewPlayer.Position = targetAudioPosition;
-                    _previewPlayer.Play();
+                    player.Position = targetAudioPosition;
+                    player.Play();
                     IsPlaying = true;
+                    _suppressSyncDriftUntil = DateTime.UtcNow.AddMilliseconds(500);
+                    _lastSyncTargetAudioPosition = targetAudioPosition;
                 }
                 else
                 {
-                    try
+                    // Detectar si el usuario retrocedió o saltó bruscamente en el tiempo (seek/scrub intencional)
+                    var targetDelta = _lastSyncTargetAudioPosition == TimeSpan.MinValue
+                        ? 0.0
+                        : (targetAudioPosition - _lastSyncTargetAudioPosition).TotalSeconds;
+
+                    bool isIntentionalJump = targetDelta < -0.15 || targetDelta > 0.40;
+
+                    if (isIntentionalJump)
                     {
-                        var playerPos = _previewPlayer.Position;
-                        var drift = Math.Abs((playerPos - targetAudioPosition).TotalSeconds);
-                        if (drift > 0.3)
+                        player.Position = targetAudioPosition;
+                        _suppressSyncDriftUntil = DateTime.UtcNow.AddMilliseconds(500);
+                        _lastSyncTargetAudioPosition = targetAudioPosition;
+                    }
+                    else
+                    {
+                        _lastSyncTargetAudioPosition = targetAudioPosition;
+
+                        // Solo corregir desfases acumulados si estamos fuera de la ventana de amortiguación de salto
+                        if (DateTime.UtcNow >= _suppressSyncDriftUntil)
                         {
-                            _previewPlayer.Position = targetAudioPosition;
+                            try
+                            {
+                                var playerPos = player.Position;
+                                var drift = Math.Abs((playerPos - targetAudioPosition).TotalSeconds);
+                                if (drift > 0.45)
+                                {
+                                    player.Position = targetAudioPosition;
+                                    _suppressSyncDriftUntil = DateTime.UtcNow.AddMilliseconds(500);
+                                }
+                            }
+                            catch { }
                         }
                     }
-                    catch { }
                 }
             }
             catch
@@ -640,15 +730,31 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         {
             if (IsPlaying)
             {
+                StopPlayback();
+            }
+
+            // Si el video está pausado pero el cursor está dentro del clip, pre-posicionar el audio sin saturar
+            if (!isVideoPlaying && inRange && _previewPlayer != null)
+            {
                 try
                 {
-                    _previewPlayer?.Pause();
+                    var offsetFromClipStart = currentVideoPosition - StartTime;
+                    var targetAudioPosition = InPoint + offsetFromClipStart;
+                    if (targetAudioPosition < TimeSpan.Zero) targetAudioPosition = TimeSpan.Zero;
+
+                    var maxAllowed = _originalDuration > TimeSpan.Zero
+                        ? _originalDuration
+                        : (_previewPlayer.NaturalDuration.HasTimeSpan ? _previewPlayer.NaturalDuration.TimeSpan : TimeSpan.Zero);
+
+                    if (maxAllowed <= TimeSpan.Zero || targetAudioPosition < maxAllowed)
+                    {
+                        if (Math.Abs((_previewPlayer.Position - targetAudioPosition).TotalSeconds) > 0.15)
+                        {
+                            _previewPlayer.Position = targetAudioPosition;
+                        }
+                    }
                 }
                 catch { }
-                finally
-                {
-                    IsPlaying = false;
-                }
             }
         }
     }
@@ -657,6 +763,9 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            _previewTimer?.Stop();
+            _previewTimer = null;
+
             if (_previewPlayer != null)
             {
                 _previewPlayer.Pause();
@@ -666,18 +775,53 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         finally
         {
             IsPlaying = false;
+            _suppressSyncDriftUntil = DateTime.MinValue;
+            _lastSyncTargetAudioPosition = TimeSpan.MinValue;
         }
     }
 
     private void PreviewPlayer_MediaEnded(object? sender, EventArgs e)
     {
-        StopPreview();
+        try
+        {
+            _previewTimer?.Stop();
+            _previewTimer = null;
+            if (_previewPlayer != null)
+            {
+                _previewPlayer.Pause();
+                _previewPlayer.Position = InPoint;
+            }
+        }
+        catch { }
+        finally
+        {
+            IsPlaying = false;
+            _suppressSyncDriftUntil = DateTime.MinValue;
+            _lastSyncTargetAudioPosition = TimeSpan.MinValue;
+        }
     }
 
     public void Dispose()
     {
-        StopPreview();
-        _previewPlayer = null;
+        try
+        {
+            _previewTimer?.Stop();
+            _previewTimer = null;
+
+            if (_previewPlayer != null)
+            {
+                _previewPlayer.MediaOpened -= PreviewPlayer_MediaOpened;
+                _previewPlayer.MediaEnded -= PreviewPlayer_MediaEnded;
+                _previewPlayer.Stop();
+                _previewPlayer.Close();
+                _previewPlayer = null;
+            }
+        }
+        catch { }
+        finally
+        {
+            IsPlaying = false;
+        }
     }
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

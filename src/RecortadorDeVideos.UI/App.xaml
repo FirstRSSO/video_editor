@@ -124,6 +124,80 @@
 
 
         <!-- ============================================================= -->
+        <!-- CAMPOS DE TEXTO: estilo de estudio oscuro con foco en latón    -->
+        <!-- ============================================================= -->
+        <Style x:Key="StudioTextBox" TargetType="{x:Type TextBox}">
+            <Setter Property="Background" Value="#151B17"/>
+            <Setter Property="Foreground" Value="{StaticResource Bone}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Rule}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="{StaticResource UIFont}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Brass}"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource BrassWash}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource RuleBright}"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                                <Setter TargetName="Border" Property="Background" Value="#1A221C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StudioCheckBox" TargetType="{x:Type CheckBox}">
+            <Setter Property="Foreground" Value="{StaticResource Sage}"/>
+            <Setter Property="FontFamily" Value="{StaticResource UIFont}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type CheckBox}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="Box" Width="14" Height="14" Background="#151B17" BorderBrush="{StaticResource Rule}"
+                                    BorderThickness="1" CornerRadius="2" VerticalAlignment="Center" Margin="0,0,6,0">
+                                <Path x:Name="CheckMark" Data="M 2.5,6.5 L 5.5,9.5 L 11.5,3.5" Stroke="{StaticResource BrassLit}"
+                                      StrokeThickness="1.6" Visibility="Collapsed" SnapsToDevicePixels="True"/>
+                            </Border>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brass}"/>
+                                <Setter TargetName="Box" Property="Background" Value="#252417"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource BrassLit}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ============================================================= -->
         <!-- MODOS DE TRABAJO: raíl plano, subrayado de latón en el activo -->
         <!-- ============================================================= -->
         <Style TargetType="{x:Type TabControl}">

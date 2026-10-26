@@ -105,33 +105,38 @@ A continuación se presentan las alternativas de desarrollo:
 3.  **Validación y Pruebas:**
     *   13 pruebas automatizadas pasando al 100% (7 unitarias + 6 de integración contra binarios reales de FFmpeg).
 
-### Fase 3: Interfaz Gráfica de Usuario (GUI) 🚀 (Siguiente Fase a Continuar)
+### Fase 3: Interfaz Gráfica de Usuario (GUI) y Editor Multipista ✅ (Completada)
 1.  **Carga de Medios:**
-    *   Selector de archivo de video MP4 y soporte Drag & Drop.
-    *   Selector opcional de archivo de audio secundario (`.mp3`, `.wav`, `.aac`, `.m4a`).
-2.  **Previsualización:**
-    *   Reproductor multimedia con barra de tiempo interactiva.
-    *   Controles de reproducción, pausa y salto por tiempo.
-3.  **Marcadores de Recorte y Configuración de Audio:**
-    *   Atajos y botones "Fijar Inicio" (`[`) y "Fijar Fin" (`]`).
-    *   Ajuste fino de tiempos (HH:mm:ss.fff).
-    *   Selector de modo de audio: Conservar original, Silenciar, Reemplazar pista, Mezclar pistas con deslizador de volumen de fondo.
+    *   Selector de archivo de video MP4 y soporte completo Drag & Drop (videos y audios).
+    *   Gestión de múltiples archivos de audio superpuestos (`.mp3`, `.wav`, `.aac`, `.m4a`, etc.).
+2.  **Previsualización y Reproducción:**
+    *   Reproductor multimedia WPF con cabezal de lectura (*playhead*) interactivo en línea de tiempo.
+    *   Controles de reproducción sincronizada en tiempo real entre video maestro y clips de audio secundarios.
+    *   Atajos de teclado intuitivos (<kbd>Espacio</kbd>, <kbd>[</kbd>, <kbd>]</kbd>, <kbd>Ctrl+S</kbd>, <kbd>F11</kbd> pantalla completa).
+3.  **Marcadores de Recorte y Multicarril Estilo Camtasia:**
+    *   Pestaña "Cortar": Marcado instantáneo de entrada/salida con ajuste a Keyframes y configuración de audio.
+    *   Pestaña "Editar": Línea de tiempo multipista con pistas dinámicas apiladas, arrastre de posición temporal, recorte interactivo en bordes (*TrimStart* / *TrimEnd*) y resolución automática de colisiones.
+    *   Pestaña "Unir": Concatenación de tramos y múltiples archivos de video con pistas de locución.
+    *   Pestaña "Acelerar": Modificación de velocidad de video con preservación o ajuste de audio.
 4.  **Exportación y Feedback en Vivo:**
-    *   Selección de ruta y nombre de destino.
-    *   Barra de progreso en tiempo real y mensajes de estado.
+    *   Configuración de nombres y carpetas de destino ("Guardar corte como…", opción de preguntar siempre).
+    *   Barra de progreso en tiempo real y registro de mensajes de estado.
+    *   41 pruebas automatizadas pasando al 100% (23 de Dominio, 7 de Aplicación, 11 de Integración con FFmpeg).
 
-### Fase 4: Funcionalidades Avanzadas (Opcional / Futuro)
-1.  **Efectos de audio:** Fundidos de entrada/salida (*Fade In* / *Fade Out*) en el audio añadido.
-2.  **Recorte de múltiples fragmentos:** Cortar varias partes de un mismo video y unirlas sin recodificar (Concat demuxer).
-3.  **Smart Cut:** Re-codificar únicamente los límites entre cortes para precisión a nivel de fotograma individual.
-4.  **Extracción de audio independiente:** Guardar solo la pista de audio (MP3/AAC) del fragmento seleccionado sin exportar video.
+### Fase 4: Funcionalidades Avanzadas 🚀 (Fase Activa)
+1.  **Efectos de audio:** Fundidos de entrada/salida (*Fade In* / *Fade Out*) configurables por clip de audio.
+2.  **Extracción de audio independiente:** Guardar únicamente la pista de audio (MP3/AAC/WAV) del video o fragmento seleccionado.
+3.  **Smart Cut:** Re-codificar únicamente los límites entre cortes para precisión a nivel de fotograma individual sin desincronización de GOP.
+4.  **Pruebas unitarias de ViewModels:** Cobertura de pruebas para la lógica de colisiones de pistas y línea de tiempo.
 
 ---
 
 ## 5. Estado Actual del Proyecto y Próximo Paso
 
 *   **Fase 1:** ✅ Completada.
-*   **Fase 2:** ✅ Completada y testeada (13/13 pruebas exitosas).
-*   **Fase activa para continuar:** 👉 **Fase 3 (Interfaz Gráfica de Usuario / GUI en WPF)**:
-    *   Probar la ejecución interactiva de la UI.
-    *   Validar la vinculación entre el reproductor de video (`MediaElement`), los deslizadores de tiempo y los comandos de corte.
+*   **Fase 2:** ✅ Completada y testeada.
+*   **Fase 3:** ✅ Completada (UI completa con corte, edición multipista, unión, aceleración y feedback).
+*   **Fase activa para continuar:** 👉 **Fase 4 (Funcionalidades Avanzadas)**:
+    *   Implementar fundidos (*Fade In* / *Fade Out*) en clips de audio.
+    *   Implementar extracción independiente de pistas de audio.
+    *   Implementar *Smart Cut* y pruebas complementarias.

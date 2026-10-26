@@ -76,18 +76,40 @@ public class FFmpegAudioMuxer : IAudioMuxer
                     inputsBuilder.Append($"-i \"{clip.FilePath}\" ");
 
                     var vol = clip.Volume.ToString("F2", CultureInfo.InvariantCulture);
-                    var delay = clip.StartTime >= timeRange.StartTime ? clip.StartTime - timeRange.StartTime : TimeSpan.Zero;
+
+                    // Si el clip inicia antes de timeRange.StartTime, ajustar el punto de entrada efectivo
+                    var effectiveInPoint = clip.InPoint;
+                    TimeSpan? effectiveDuration = clip.Duration;
+                    TimeSpan delay;
+
+                    if (clip.StartTime < timeRange.StartTime)
+                    {
+                        var startOffset = timeRange.StartTime - clip.StartTime;
+                        effectiveInPoint += startOffset;
+                        if (effectiveDuration.HasValue)
+                        {
+                            effectiveDuration = effectiveDuration.Value > startOffset
+                                ? effectiveDuration.Value - startOffset
+                                : TimeSpan.FromMilliseconds(50);
+                        }
+                        delay = TimeSpan.Zero;
+                    }
+                    else
+                    {
+                        delay = clip.StartTime - timeRange.StartTime;
+                    }
+
                     long delayMs = (long)Math.Round(delay.TotalMilliseconds);
 
                     var filterChain = new List<string>();
 
                     // Recorte del clip de audio (punto de entrada y duración)
-                    if (clip.InPoint > TimeSpan.Zero || clip.Duration.HasValue)
+                    if (effectiveInPoint > TimeSpan.Zero || effectiveDuration.HasValue)
                     {
-                        var startSec = clip.InPoint.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
-                        if (clip.Duration.HasValue)
+                        var startSec = effectiveInPoint.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                        if (effectiveDuration.HasValue)
                         {
-                            var endSec = (clip.InPoint + clip.Duration.Value).TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                            var endSec = (effectiveInPoint + effectiveDuration.Value).TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
                             filterChain.Add($"atrim=start={startSec}:end={endSec},asetpts=PTS-STARTPTS");
                         }
                         else

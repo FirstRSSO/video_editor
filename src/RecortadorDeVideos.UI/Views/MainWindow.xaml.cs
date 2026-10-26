@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -41,12 +42,17 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _editorTimer;
     private bool _isEditorPlaying = false;
     private bool _isDraggingRuler = false;
+    private bool _wasEditorPlayingBeforeRulerDrag = false;
+    private DateTime _suppressEditorTimerUntil = DateTime.MinValue;
     private enum ClipDragMode { None, Move, TrimStart, TrimEnd }
     private ClipDragMode _clipDragMode = ClipDragMode.None;
     private AudioClipItemViewModel? _draggedClip = null;
     private Border? _draggedClipBorder = null;
     private Point _clipDragStartMousePoint;
     private TimeSpan _clipDragStartTime;
+    private TimeSpan _clipDragStartInPoint;
+    private TimeSpan _clipDragStartDuration;
+    private int _clipDragStartTrackIndex = 0;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -56,6 +62,19 @@ public partial class MainWindow : Window
 
         _viewModel.RequestToggleFullscreen += ToggleFullscreen;
         _viewModel.RequestSeekToPosition += PerformSeek;
+        _viewModel.RequestSaveFilePath = (title, suggestedFileName, defaultDir, extension) =>
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = title,
+                InitialDirectory = Directory.Exists(defaultDir) ? defaultDir : Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                FileName = suggestedFileName,
+                Filter = $"Archivo de Video (*{extension})|*{extension}|Todos los archivos (*.*)|*.*",
+                DefaultExt = extension
+            };
+
+            return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+        };
         _viewModel.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.IsSidebarVisible) || 
@@ -66,7 +85,9 @@ public partial class MainWindow : Window
             else if (e.PropertyName == nameof(MainViewModel.VideoDuration) ||
                      e.PropertyName == nameof(MainViewModel.TimelineZoom) ||
                      e.PropertyName == nameof(MainViewModel.TimelineTotalWidth) ||
-                     e.PropertyName == nameof(MainViewModel.SelectedAudioClip))
+                     e.PropertyName == nameof(MainViewModel.SelectedAudioClip) ||
+                     e.PropertyName == nameof(MainViewModel.TotalAudioTracksCount) ||
+                     e.PropertyName == nameof(MainViewModel.AudioTracksHeight))
             {
                 UpdateTimelineDisplay();
             }
@@ -85,7 +106,21 @@ public partial class MainWindow : Window
 
         _viewModel.AudioClips.CollectionChanged += (s, e) =>
         {
-            UpdateAudioClipsOnTimeline();
+            if (e.NewItems != null)
+            {
+                foreach (AudioClipItemViewModel clip in e.NewItems)
+                {
+                    clip.PropertyChanged += AudioClip_PropertyChanged;
+                }
+            }
+            if (e.OldItems != null)
+            {
+                foreach (AudioClipItemViewModel clip in e.OldItems)
+                {
+                    clip.PropertyChanged -= AudioClip_PropertyChanged;
+                }
+            }
+            UpdateTimelineDisplay();
         };
 
         _timer = new DispatcherTimer
@@ -191,6 +226,22 @@ public partial class MainWindow : Window
             var ext = Path.GetExtension(f).ToLowerInvariant();
             return ext is ".mp4" or ".mkv" or ".mov" or ".avi" or ".ts";
         }).ToList();
+
+        var audioFiles = files.Where(f =>
+        {
+            var ext = Path.GetExtension(f).ToLowerInvariant();
+            return ext is ".mp3" or ".wav" or ".aac" or ".m4a" or ".ogg" or ".flac" or ".wma";
+        }).ToList();
+
+        if (MainTabControl.SelectedItem == TabItemEditor && audioFiles.Count > 0 && videoFiles.Count == 0)
+        {
+            foreach (var audio in audioFiles)
+            {
+                _viewModel.AddAudioClip(audio);
+            }
+            UpdateTimelineDisplay();
+            return;
+        }
 
         if (videoFiles.Count == 0) return;
 
@@ -603,6 +654,21 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            if (MainTabControl.SelectedItem == TabItemCut && _viewModel.CanTrimVideo)
+            {
+                _viewModel.TrimCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+            else if (MainTabControl.SelectedItem == TabItemEditor && _viewModel.HasVideo)
+            {
+                _viewModel.ExportTimelineVideoCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
 
         if (e.Key == Key.Space)
         {
@@ -648,7 +714,13 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.I || e.Key == Key.OemOpenBrackets) // 'I' o '['
         {
-            if (_viewModel.HasVideo)
+            if (MainTabControl.SelectedItem == TabItemEditor && _viewModel.HasSelectedClip)
+            {
+                _viewModel.TrimSelectedClipStartToPlayhead();
+                UpdateTimelineDisplay();
+                e.Handled = true;
+            }
+            else if (_viewModel.HasVideo)
             {
                 _viewModel.StartTime = _viewModel.CurrentPlaybackPosition;
                 e.Handled = true;
@@ -656,7 +728,13 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.O || e.Key == Key.OemCloseBrackets) // 'O' o ']'
         {
-            if (_viewModel.HasVideo)
+            if (MainTabControl.SelectedItem == TabItemEditor && _viewModel.HasSelectedClip)
+            {
+                _viewModel.TrimSelectedClipEndToPlayhead();
+                UpdateTimelineDisplay();
+                e.Handled = true;
+            }
+            else if (_viewModel.HasVideo)
             {
                 _viewModel.EndTime = _viewModel.CurrentPlaybackPosition;
                 e.Handled = true;
@@ -937,6 +1015,7 @@ public partial class MainWindow : Window
             {
                 EditorVideoPlayer.Volume = Math.Clamp(_viewModel.MainVolume * EditorVolumeSlider.Value, 0.0, 1.0);
             }
+            _suppressEditorTimerUntil = DateTime.UtcNow.AddMilliseconds(500);
             EditorVideoPlayer.Position = _viewModel.CurrentPlaybackPosition;
             UpdatePlayheadPosition();
         }
@@ -945,12 +1024,27 @@ public partial class MainWindow : Window
 
     private void EditorTimer_Tick(object? sender, EventArgs e)
     {
-        if (_isDraggingRuler || _clipDragMode != ClipDragMode.None) return;
+        if (_isDraggingRuler || _clipDragMode != ClipDragMode.None || DateTime.UtcNow < _suppressEditorTimerUntil) return;
         if (!EditorVideoPlayer.NaturalDuration.HasTimeSpan) return;
 
         try
         {
             var current = EditorVideoPlayer.Position;
+
+            // Evitar que lecturas transitorias anómalas (como 0 segundos justo tras un salto) sobreescriban la posición
+            if (current == TimeSpan.Zero && _viewModel.CurrentPlaybackPosition.TotalSeconds > 0.5)
+            {
+                return;
+            }
+
+            // Si llegamos al final del video, pausar ordenadamente
+            if (EditorVideoPlayer.NaturalDuration.HasTimeSpan && 
+                current >= EditorVideoPlayer.NaturalDuration.TimeSpan - TimeSpan.FromMilliseconds(50))
+            {
+                ToggleEditorPlayPause();
+                return;
+            }
+
             _viewModel.CurrentPlaybackPosition = current;
             UpdatePlayheadPosition();
 
@@ -1020,13 +1114,14 @@ public partial class MainWindow : Window
                     EditorVideoPlayer.Volume = Math.Clamp(_viewModel.MainVolume * EditorVolumeSlider.Value, 0.0, 1.0);
                 }
 
+                _suppressEditorTimerUntil = DateTime.UtcNow.AddMilliseconds(300);
                 EditorVideoPlayer.Play();
                 _editorTimer.Start();
                 _isEditorPlaying = true;
                 SetTransportGlyph(BtnEditorPlayPause, playing: true);
 
-                // Iniciar audios activos en el fotograma actual
-                var current = EditorVideoPlayer.Position;
+                // Iniciar audios activos en el fotograma actual usando la posición real seleccionada
+                var current = _viewModel.CurrentPlaybackPosition;
                 var masterVol = EditorVolumeSlider != null ? EditorVolumeSlider.Value : 1.0;
                 foreach (var clip in _viewModel.AudioClips)
                 {
@@ -1062,7 +1157,10 @@ public partial class MainWindow : Window
     private void SeekEditorRelative(double deltaSeconds)
     {
         if (!_viewModel.HasVideo) return;
-        var target = _viewModel.CurrentPlaybackPosition + TimeSpan.FromSeconds(deltaSeconds);
+        var baseTime = DateTime.UtcNow < _suppressEditorTimerUntil
+            ? _viewModel.CurrentPlaybackPosition
+            : EditorVideoPlayer.Position;
+        var target = baseTime + TimeSpan.FromSeconds(deltaSeconds);
         if (target < TimeSpan.Zero) target = TimeSpan.Zero;
         if (_viewModel.VideoDuration > TimeSpan.Zero && target > _viewModel.VideoDuration) target = _viewModel.VideoDuration;
         SeekEditorVideo(target);
@@ -1072,6 +1170,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            _suppressEditorTimerUntil = DateTime.UtcNow.AddMilliseconds(500);
             EditorVideoPlayer.Position = target;
             _viewModel.CurrentPlaybackPosition = target;
             UpdatePlayheadPosition();
@@ -1116,6 +1215,17 @@ public partial class MainWindow : Window
         var targetSec = pos.X / _viewModel.TimelinePixelsPerSecond;
         var targetTime = TimeSpan.FromSeconds(Math.Clamp(targetSec, 0, _viewModel.VideoDuration.TotalSeconds));
 
+        _wasEditorPlayingBeforeRulerDrag = _isEditorPlaying;
+        if (_isEditorPlaying)
+        {
+            // Pausar reproducción mientras se arrastra la regla para scrubbing fluido sin bucles ni tartamudeo
+            EditorVideoPlayer.Pause();
+            _editorTimer.Stop();
+            _isEditorPlaying = false;
+            SetTransportGlyph(BtnEditorPlayPause, playing: false);
+            StopAllAudioClipsPlayback();
+        }
+
         SeekEditorVideo(targetTime);
 
         if (sender is UIElement el)
@@ -1133,7 +1243,15 @@ public partial class MainWindow : Window
         var targetSec = pos.X / _viewModel.TimelinePixelsPerSecond;
         var targetTime = TimeSpan.FromSeconds(Math.Clamp(targetSec, 0, _viewModel.VideoDuration.TotalSeconds));
 
-        SeekEditorVideo(targetTime);
+        _viewModel.CurrentPlaybackPosition = targetTime;
+        UpdatePlayheadPosition();
+        _suppressEditorTimerUntil = DateTime.UtcNow.AddMilliseconds(500);
+
+        try
+        {
+            EditorVideoPlayer.Position = targetTime;
+        }
+        catch { }
     }
 
     private void TimelineRuler_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -1144,6 +1262,14 @@ public partial class MainWindow : Window
             if (sender is UIElement el)
             {
                 el.ReleaseMouseCapture();
+            }
+
+            SeekEditorVideo(_viewModel.CurrentPlaybackPosition);
+
+            if (_wasEditorPlayingBeforeRulerDrag)
+            {
+                _wasEditorPlayingBeforeRulerDrag = false;
+                ToggleEditorPlayPause();
             }
         }
     }
@@ -1179,9 +1305,116 @@ public partial class MainWindow : Window
     {
         if (_viewModel == null) return;
 
+        UpdateAudioTrackHeaders();
         RenderTimelineRuler();
         UpdateAudioClipsOnTimeline();
         UpdatePlayheadPosition();
+    }
+
+    private void UpdateAudioTrackHeaders()
+    {
+        if (_viewModel == null || AudioTrackHeadersPanel == null) return;
+        AudioTrackHeadersPanel.Children.Clear();
+
+        var trackCount = _viewModel.TotalAudioTracksCount;
+        var totalHeight = trackCount * 56.0;
+
+        if (AudioHeaderRowDef != null) AudioHeaderRowDef.Height = new GridLength(totalHeight);
+        if (AudioTrackRowDef != null) AudioTrackRowDef.Height = new GridLength(totalHeight);
+        if (AudioClipsCanvas != null) AudioClipsCanvas.Height = totalHeight;
+
+        var neededPanelHeight = Math.Clamp(72.0 + totalHeight + 45.0, 190.0, 450.0);
+        if (TimelinePanelRowDef != null && TimelinePanelRowDef.Height.Value < neededPanelHeight)
+        {
+            TimelinePanelRowDef.Height = new GridLength(neededPanelHeight);
+        }
+
+        var brassBrush = (Brush)FindResource("Brass");
+        var brassLitBrush = (Brush)FindResource("BrassLit");
+        var sageDimBrush = (Brush)FindResource("SageDim");
+        var ruleFaintBrush = (Brush)FindResource("RuleFaint");
+
+        for (int track = 0; track < trackCount; track++)
+        {
+            var trackIndex = track;
+            var clipCountOnTrack = _viewModel.AudioClips.Count(c => c.TrackIndex == trackIndex);
+
+            var trackBorder = new Border
+            {
+                Height = 56.0,
+                BorderBrush = ruleFaintBrush,
+                BorderThickness = new Thickness(0, 0, 0, track < trackCount - 1 ? 1 : 0),
+                Padding = new Thickness(8, 4, 8, 4),
+                Background = track % 2 == 0 
+                    ? new SolidColorBrush(Color.FromRgb(0x16, 0x1C, 0x18)) 
+                    : new SolidColorBrush(Color.FromRgb(0x13, 0x19, 0x15))
+            };
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var icon = new WpfPath
+            {
+                Data = (Geometry)FindResource("IconMusicGeometry"),
+                Fill = brassBrush,
+                Width = 11,
+                Height = 11,
+                Stretch = Stretch.Uniform,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            var titleText = new TextBlock
+            {
+                Text = trackCount == 1 ? "P2 · VOCES" : $"P{trackIndex + 2} · VOCES {trackIndex + 1}",
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = brassBrush
+            };
+            titlePanel.Children.Add(icon);
+            titlePanel.Children.Add(titleText);
+            Grid.SetRow(titlePanel, 0);
+            grid.Children.Add(titlePanel);
+
+            var subPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
+            var countText = new TextBlock
+            {
+                Text = clipCountOnTrack == 1 ? "1 audio" : $"{clipCountOnTrack} audios",
+                FontSize = 10,
+                Foreground = sageDimBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            subPanel.Children.Add(countText);
+
+            if (trackIndex == 0)
+            {
+                var addBtn = new Button
+                {
+                    Style = (Style)FindResource("TransportGlyph"),
+                    Width = 18,
+                    Height = 18,
+                    Margin = new Thickness(8, 0, 0, 0),
+                    ToolTip = "Añadir audio en el cabezal"
+                };
+                var addIcon = new WpfPath
+                {
+                    Data = (Geometry)FindResource("IconPlusGeometry"),
+                    Fill = brassLitBrush,
+                    Width = 8,
+                    Height = 8,
+                    Stretch = Stretch.Uniform
+                };
+                addBtn.Content = addIcon;
+                addBtn.Click += AddAudioClip_Click;
+                subPanel.Children.Add(addBtn);
+            }
+
+            Grid.SetRow(subPanel, 1);
+            grid.Children.Add(subPanel);
+
+            trackBorder.Child = grid;
+            AudioTrackHeadersPanel.Children.Add(trackBorder);
+        }
     }
 
     private void RenderTimelineRuler()
@@ -1253,12 +1486,67 @@ public partial class MainWindow : Window
         if (_viewModel.TimelinePixelsPerSecond <= 0) return;
 
         var pps = _viewModel.TimelinePixelsPerSecond;
+        var trackCount = _viewModel.TotalAudioTracksCount;
+        var totalCanvasHeight = trackCount * 56.0;
+        AudioClipsCanvas.Height = totalCanvasHeight;
+
         var brassBrush = (Brush)FindResource("Brass");
         var brassLitBrush = (Brush)FindResource("BrassLit");
         var boneBrush = (Brush)FindResource("Bone");
         var sageBrush = (Brush)FindResource("Sage");
         var slateBrush = (Brush)FindResource("Slate");
         var monoFont = (FontFamily)FindResource("MonoFont");
+
+        // Dibujar carriles de fondo, líneas divisorias y marcas de agua de pista
+        for (int track = 0; track < trackCount; track++)
+        {
+            var laneY = track * 56.0;
+
+            if (track % 2 == 1)
+            {
+                var laneBg = new WpfRectangle
+                {
+                    Width = Math.Max(_viewModel.TimelineTotalWidth, 2000),
+                    Height = 56.0,
+                    Fill = new SolidColorBrush(Color.FromArgb(0x18, 0x00, 0x00, 0x00)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(laneBg, 0);
+                Canvas.SetTop(laneBg, laneY);
+                AudioClipsCanvas.Children.Add(laneBg);
+            }
+
+            if (track < trackCount - 1)
+            {
+                var laneDivider = new WpfLine
+                {
+                    X1 = 0,
+                    X2 = Math.Max(_viewModel.TimelineTotalWidth, 2000),
+                    Y1 = laneY + 56.0,
+                    Y2 = laneY + 56.0,
+                    Stroke = new SolidColorBrush(Color.FromRgb(0x22, 0x2C, 0x25)),
+                    StrokeThickness = 1,
+                    SnapsToDevicePixels = true,
+                    IsHitTestVisible = false
+                };
+                AudioClipsCanvas.Children.Add(laneDivider);
+            }
+
+            if (trackCount > 1)
+            {
+                var trackWatermark = new TextBlock
+                {
+                    Text = $"PISTA {track + 2}",
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(trackWatermark, 8);
+                Canvas.SetTop(trackWatermark, laneY + 38);
+                AudioClipsCanvas.Children.Add(trackWatermark);
+            }
+        }
 
         foreach (var clip in _viewModel.AudioClips)
         {
@@ -1268,7 +1556,7 @@ public partial class MainWindow : Window
             {
                 Tag = clip,
                 Width = clip.TimelineWidth,
-                Height = 52,
+                Height = 46,
                 CornerRadius = new CornerRadius(3),
                 Background = clip.IsSelected 
                     ? new SolidColorBrush(Color.FromRgb(0x35, 0x2C, 0x18)) 
@@ -1281,7 +1569,7 @@ public partial class MainWindow : Window
             };
 
             Canvas.SetLeft(border, clip.TimelineLeft);
-            Canvas.SetTop(border, 6);
+            Canvas.SetTop(border, clip.TrackIndex * 56.0 + 5.0);
 
             var mainGrid = new Grid();
             mainGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
@@ -1409,6 +1697,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AudioClip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_clipDragMode != ClipDragMode.None) return;
+        if (e.PropertyName is nameof(AudioClipItemViewModel.StartTime) or
+                               nameof(AudioClipItemViewModel.Duration) or
+                               nameof(AudioClipItemViewModel.InPoint) or
+                               nameof(AudioClipItemViewModel.OriginalDuration) or
+                               nameof(AudioClipItemViewModel.IsSelected) or
+                               nameof(AudioClipItemViewModel.IsTrimmed) or
+                               nameof(AudioClipItemViewModel.TrackIndex))
+        {
+            Dispatcher.InvokeAsync(UpdateTimelineDisplay);
+        }
+    }
+
     private void StartClipDrag(AudioClipItemViewModel clip, Border border, ClipDragMode mode, MouseButtonEventArgs e)
     {
         clip.StopPlayback();
@@ -1418,10 +1721,43 @@ public partial class MainWindow : Window
         _clipDragMode = mode;
         _clipDragStartMousePoint = e.GetPosition(TimelineContentGrid);
         _clipDragStartTime = clip.StartTime;
+        _clipDragStartInPoint = clip.InPoint;
+        _clipDragStartDuration = clip.Duration;
+        _clipDragStartTrackIndex = clip.TrackIndex;
 
         border.CaptureMouse();
+        border.LostMouseCapture -= DraggedClipBorder_LostMouseCapture;
+        border.LostMouseCapture += DraggedClipBorder_LostMouseCapture;
         e.Handled = true;
-        UpdateTimelineDisplay();
+
+        // Actualizar visualmente la selección sin destruir los elementos del Canvas
+        var brassBrush = (Brush)FindResource("Brass");
+        border.BorderBrush = brassBrush;
+        border.BorderThickness = new Thickness(2);
+        border.Background = new SolidColorBrush(Color.FromRgb(0x35, 0x2C, 0x18));
+    }
+
+    private void DraggedClipBorder_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (_clipDragMode != ClipDragMode.None)
+        {
+            _clipDragMode = ClipDragMode.None;
+            if (_draggedClip != null)
+            {
+                _draggedClip.TrackIndex = _viewModel.GetNextAvailableTrackIndex(
+                    _draggedClip.StartTime,
+                    _draggedClip.Duration,
+                    _draggedClip,
+                    _draggedClip.TrackIndex);
+
+                _viewModel.ResolveAudioClipCollisions(_draggedClip);
+                _viewModel.CompactAudioTracks();
+                _viewModel.UpdateTimelineMetrics();
+            }
+            _draggedClip = null;
+            _draggedClipBorder = null;
+            UpdateTimelineDisplay();
+        }
     }
 
     private void AudioClip_MouseMove(object sender, MouseEventArgs e)
@@ -1430,8 +1766,8 @@ public partial class MainWindow : Window
         if (_viewModel.TimelinePixelsPerSecond <= 0) return;
 
         var currentMousePoint = e.GetPosition(TimelineContentGrid);
-        var deltaX = currentMousePoint.X - _clipDragStartMousePoint.X;
-        var deltaSeconds = deltaX / _viewModel.TimelinePixelsPerSecond;
+        var totalDeltaX = currentMousePoint.X - _clipDragStartMousePoint.X;
+        var totalDeltaSeconds = totalDeltaX / _viewModel.TimelinePixelsPerSecond;
 
         var maxLimit = _viewModel.VideoDuration.TotalSeconds > 0 
             ? _viewModel.VideoDuration.TotalSeconds 
@@ -1440,30 +1776,121 @@ public partial class MainWindow : Window
         switch (_clipDragMode)
         {
             case ClipDragMode.Move:
-                var newSeconds = Math.Clamp(_clipDragStartTime.TotalSeconds + deltaSeconds, 0.0, maxLimit);
-                _draggedClip.StartTime = TimeSpan.FromSeconds(newSeconds);
+            {
+                var totalDeltaY = currentMousePoint.Y - _clipDragStartMousePoint.Y;
+                var trackOffset = (int)Math.Round(totalDeltaY / 56.0);
+                var targetTrack = Math.Max(0, _clipDragStartTrackIndex + trackOffset);
+
+                var proposedSeconds = Math.Clamp(_clipDragStartTime.TotalSeconds + totalDeltaSeconds, 0.0, maxLimit);
+                var snapThresholdSeconds = 10.0 / _viewModel.TimelinePixelsPerSecond;
+
+                // Snap magnético al inicio (0)
+                if (Math.Abs(proposedSeconds) < snapThresholdSeconds)
+                {
+                    proposedSeconds = 0.0;
+                }
+                // Snap magnético al cabezal
+                else if (Math.Abs(proposedSeconds - _viewModel.CurrentPlaybackPosition.TotalSeconds) < snapThresholdSeconds)
+                {
+                    proposedSeconds = _viewModel.CurrentPlaybackPosition.TotalSeconds;
+                }
+                else
+                {
+                    // Snap magnético a los extremos de otros clips
+                    foreach (var other in _viewModel.AudioClips)
+                    {
+                        if (other == _draggedClip) continue;
+                        var otherStart = other.StartTime.TotalSeconds;
+                        var otherEnd = (other.StartTime + other.Duration).TotalSeconds;
+
+                        if (Math.Abs(proposedSeconds - otherEnd) < snapThresholdSeconds)
+                        {
+                            proposedSeconds = otherEnd;
+                            break;
+                        }
+                        if (Math.Abs(proposedSeconds - otherStart) < snapThresholdSeconds)
+                        {
+                            proposedSeconds = otherStart;
+                            break;
+                        }
+                        var proposedEnd = proposedSeconds + _draggedClip.Duration.TotalSeconds;
+                        if (Math.Abs(proposedEnd - otherStart) < snapThresholdSeconds)
+                        {
+                            proposedSeconds = Math.Max(0.0, otherStart - _draggedClip.Duration.TotalSeconds);
+                            break;
+                        }
+                    }
+                }
+
+                _draggedClip.StartTime = TimeSpan.FromSeconds(proposedSeconds);
+                _draggedClip.TrackIndex = targetTrack;
                 _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
+
                 Canvas.SetLeft(_draggedClipBorder, _draggedClip.TimelineLeft);
-                _viewModel.StatusMessage = $"Moviendo '{_draggedClip.FileName}' a {_draggedClip.FormattedStartTime}…";
+                Canvas.SetTop(_draggedClipBorder, targetTrack * 56.0 + 5.0);
+
+                var requiredHeight = Math.Max(_viewModel.AudioTracksHeight, (targetTrack + 1) * 56.0);
+                if (AudioClipsCanvas.Height < requiredHeight)
+                {
+                    AudioClipsCanvas.Height = requiredHeight;
+                }
+
+                _viewModel.StatusMessage = $"Moviendo '{_draggedClip.FileName}' a {_draggedClip.FormattedStartTime} ({_draggedClip.TrackDisplayName})…";
                 break;
+            }
 
             case ClipDragMode.TrimStart:
-                _draggedClip.TrimStartByDelta(deltaSeconds, TimeSpan.FromSeconds(maxLimit));
+            {
+                var minDuration = TimeSpan.FromMilliseconds(200);
+                var maxDelta = _clipDragStartDuration - minDuration;
+                var minDelta = -_clipDragStartInPoint;
+
+                var clampedDelta = TimeSpan.FromSeconds(totalDeltaSeconds);
+                if (clampedDelta < minDelta) clampedDelta = minDelta;
+                if (clampedDelta > maxDelta) clampedDelta = maxDelta;
+
+                var proposedStart = _clipDragStartTime + clampedDelta;
+                if (proposedStart < TimeSpan.Zero)
+                {
+                    clampedDelta = TimeSpan.Zero - _clipDragStartTime;
+                    proposedStart = TimeSpan.Zero;
+                }
+
+                _draggedClip.StartTime = proposedStart;
+                _draggedClip.InPoint = _clipDragStartInPoint + clampedDelta;
+                _draggedClip.Duration = _clipDragStartDuration - clampedDelta;
+
                 _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
                 Canvas.SetLeft(_draggedClipBorder, _draggedClip.TimelineLeft);
                 _draggedClipBorder.Width = _draggedClip.TimelineWidth;
-                _clipDragStartMousePoint = currentMousePoint;
-                _clipDragStartTime = _draggedClip.StartTime;
-                _viewModel.StatusMessage = $"Recortando inicio de '{_draggedClip.FileName}': desde {_draggedClip.FormattedInPoint}…";
+                _viewModel.StatusMessage = $"Recorte inicio '{_draggedClip.FileName}': desde {_draggedClip.FormattedInPoint} (duración {_draggedClip.FormattedDuration})";
                 break;
+            }
 
             case ClipDragMode.TrimEnd:
-                _draggedClip.TrimEndByDelta(deltaSeconds);
+            {
+                var minDuration = TimeSpan.FromMilliseconds(200);
+                var proposedDuration = _clipDragStartDuration + TimeSpan.FromSeconds(totalDeltaSeconds);
+                if (proposedDuration < minDuration)
+                {
+                    proposedDuration = minDuration;
+                }
+
+                if (_draggedClip.OriginalDuration > TimeSpan.Zero)
+                {
+                    var maxAvailable = _draggedClip.OriginalDuration - _draggedClip.InPoint;
+                    if (proposedDuration > maxAvailable)
+                    {
+                        proposedDuration = maxAvailable > minDuration ? maxAvailable : minDuration;
+                    }
+                }
+
+                _draggedClip.Duration = proposedDuration;
                 _draggedClip.UpdateTimelineBounds(_viewModel.TimelinePixelsPerSecond);
                 _draggedClipBorder.Width = _draggedClip.TimelineWidth;
-                _clipDragStartMousePoint = currentMousePoint;
-                _viewModel.StatusMessage = $"Recortando fin de '{_draggedClip.FileName}': duración {_draggedClip.FormattedDuration}…";
+                _viewModel.StatusMessage = $"Recorte fin '{_draggedClip.FileName}': duración {_draggedClip.FormattedDuration}";
                 break;
+            }
         }
     }
 
@@ -1474,14 +1901,26 @@ public partial class MainWindow : Window
             _clipDragMode = ClipDragMode.None;
             if (_draggedClipBorder != null)
             {
+                _draggedClipBorder.LostMouseCapture -= DraggedClipBorder_LostMouseCapture;
                 _draggedClipBorder.ReleaseMouseCapture();
             }
 
             if (_draggedClip != null)
             {
-                _viewModel.StatusMessage = $"Audio '{_draggedClip.FileName}' ajustado en la pista.";
+                // Si la posición objetivo colisiona con otro audio en la misma pista,
+                // reubicarlo automáticamente en la pista de abajo (estilo Camtasia)
+                _draggedClip.TrackIndex = _viewModel.GetNextAvailableTrackIndex(
+                    _draggedClip.StartTime,
+                    _draggedClip.Duration,
+                    _draggedClip,
+                    _draggedClip.TrackIndex);
+
+                _viewModel.ResolveAudioClipCollisions(_draggedClip);
+                _viewModel.CompactAudioTracks();
                 _viewModel.UpdateTimelineMetrics();
                 UpdateTimelineDisplay();
+
+                _viewModel.StatusMessage = $"Audio '{_draggedClip.FileName}' ubicado en {_draggedClip.TrackDisplayName} ({_draggedClip.FormattedStartTime}).";
 
                 if (_isEditorPlaying)
                 {
@@ -1503,6 +1942,9 @@ public partial class MainWindow : Window
         var x = _viewModel.CurrentPlaybackPosition.TotalSeconds * _viewModel.TimelinePixelsPerSecond;
         Canvas.SetLeft(PlayheadMarker, x);
         Canvas.SetLeft(PlayheadLine, x);
+
+        var totalHeight = _viewModel.TotalAudioTracksCount * 56.0;
+        PlayheadLine.Y2 = Math.Max(240, 26 + 46 + totalHeight + 30);
     }
 
     #endregion

@@ -161,7 +161,12 @@ public class MainViewModel : INotifyPropertyChanged
         NudgeSelectedClipInPointBackwardCommand = new RelayCommand(() => NudgeSelectedClipInPoint(-0.5), () => HasSelectedClip && !IsProcessing);
         NudgeSelectedClipDurationForwardCommand = new RelayCommand(() => NudgeSelectedClipDuration(0.5), () => HasSelectedClip && !IsProcessing);
         NudgeSelectedClipDurationBackwardCommand = new RelayCommand(() => NudgeSelectedClipDuration(-0.5), () => HasSelectedClip && !IsProcessing);
+
+        BrowseSaveAsCommand = new RelayCommand(BrowseSaveAs, () => HasVideo && !IsProcessing);
     }
+
+    public delegate string? SaveFilePathRequestHandler(string title, string suggestedFileName, string defaultDirectory, string extension);
+    public SaveFilePathRequestHandler? RequestSaveFilePath { get; set; }
 
     #region Propiedades de Video y Reproducción
 
@@ -204,7 +209,14 @@ public class MainViewModel : INotifyPropertyChanged
     public TimeSpan StartTime
     {
         get => _startTime;
-        set { _startTime = value; OnPropertyChanged(); OnPropertyChanged(nameof(StartTimeString)); OnPropertyChanged(nameof(TrimDurationString)); }
+        set
+        {
+            _startTime = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(StartTimeString));
+            OnPropertyChanged(nameof(TrimDurationString));
+            OnPropertyChanged(nameof(CanTrimVideo));
+        }
     }
 
     public string StartTimeString => TimeRange.FormatFFmpegTime(StartTime);
@@ -212,7 +224,14 @@ public class MainViewModel : INotifyPropertyChanged
     public TimeSpan EndTime
     {
         get => _endTime;
-        set { _endTime = value; OnPropertyChanged(); OnPropertyChanged(nameof(EndTimeString)); OnPropertyChanged(nameof(TrimDurationString)); }
+        set
+        {
+            _endTime = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(EndTimeString));
+            OnPropertyChanged(nameof(TrimDurationString));
+            OnPropertyChanged(nameof(CanTrimVideo));
+        }
     }
 
     public string EndTimeString => TimeRange.FormatFFmpegTime(EndTime);
@@ -232,6 +251,78 @@ public class MainViewModel : INotifyPropertyChanged
     public string CurrentPositionString => TimeRange.FormatFFmpegTime(CurrentPlaybackPosition);
 
     public string TrimDurationString => EndTime > StartTime ? TimeRange.FormatFFmpegTime(EndTime - StartTime) : "00:00:00.000";
+
+    public bool CanTrimVideo => CanTrim();
+
+    private string _outputFileName = string.Empty;
+    public string OutputFileName
+    {
+        get => _outputFileName;
+        set
+        {
+            if (_outputFileName != value)
+            {
+                _outputFileName = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FormattedOutputFileNamePreview));
+            }
+        }
+    }
+
+    private string? _customOutputDirectory;
+    public string? CustomOutputDirectory
+    {
+        get => _customOutputDirectory;
+        set
+        {
+            if (_customOutputDirectory != value)
+            {
+                _customOutputDirectory = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(EffectiveOutputDirectory));
+                OnPropertyChanged(nameof(FormattedOutputLocationPreview));
+            }
+        }
+    }
+
+    public string EffectiveOutputDirectory =>
+        !string.IsNullOrWhiteSpace(_customOutputDirectory) && Directory.Exists(_customOutputDirectory)
+            ? _customOutputDirectory
+            : (!string.IsNullOrWhiteSpace(VideoFilePath) ? Path.GetDirectoryName(VideoFilePath) ?? string.Empty : string.Empty);
+
+    public string VideoExtension => !string.IsNullOrWhiteSpace(VideoFilePath) ? Path.GetExtension(VideoFilePath) : ".mp4";
+
+    public string FormattedOutputFileNamePreview
+    {
+        get
+        {
+            var ext = VideoExtension;
+            if (string.IsNullOrWhiteSpace(OutputFileName))
+                return $"nuevo_corte{ext}";
+            return OutputFileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
+                ? OutputFileName
+                : $"{OutputFileName}{ext}";
+        }
+    }
+
+    public string FormattedOutputLocationPreview =>
+        !string.IsNullOrWhiteSpace(EffectiveOutputDirectory)
+            ? Path.GetFileName(EffectiveOutputDirectory)
+            : "Misma carpeta del video";
+
+    private bool _askSaveLocationOnTrim = true;
+    public bool AskSaveLocationOnTrim
+    {
+        get => _askSaveLocationOnTrim;
+        set
+        {
+            if (_askSaveLocationOnTrim != value)
+            {
+                _askSaveLocationOnTrim = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public double ProgressPercentage
     {
@@ -296,6 +387,8 @@ public class MainViewModel : INotifyPropertyChanged
     public bool IsAudioClipsSidebarVisible => CurrentSidebarView == SidebarViewMode.AudioClips;
 
     public int TotalAudioClipsCount => AudioClips.Count;
+    public int TotalAudioTracksCount => AudioClips.Count == 0 ? 1 : Math.Max(1, AudioClips.Max(c => c.TrackIndex) + 1);
+    public double AudioTracksHeight => TotalAudioTracksCount * 56.0;
     public bool HasAudioClips => AudioClips.Count > 0;
     public bool HasNoAudioClips => AudioClips.Count == 0;
 
@@ -363,6 +456,7 @@ public class MainViewModel : INotifyPropertyChanged
     #region Comandos
 
     public ICommand TrimCommand { get; }
+    public ICommand BrowseSaveAsCommand { get; }
     public ICommand SetStartToCurrentCommand { get; }
     public ICommand SetEndToCurrentCommand { get; }
 
@@ -574,6 +668,8 @@ public class MainViewModel : INotifyPropertyChanged
             }
 
             ReindexAudioClips();
+            ResolveAudioClipCollisions(secondClip);
+            CompactAudioTracks();
             NotifyAudioClipsChanged();
             UpdateTimelineMetrics();
             SelectedAudioClip = secondClip;
@@ -586,6 +682,9 @@ public class MainViewModel : INotifyPropertyChanged
         if (SelectedAudioClip == null) return;
         if (SelectedAudioClip.TrimStartAtPlayhead(CurrentPlaybackPosition))
         {
+            SelectedAudioClip.TrackIndex = GetNextAvailableTrackIndex(SelectedAudioClip.StartTime, SelectedAudioClip.Duration, SelectedAudioClip, SelectedAudioClip.TrackIndex);
+            ResolveAudioClipCollisions(SelectedAudioClip);
+            CompactAudioTracks();
             SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
             UpdateTimelineMetrics();
             StatusMessage = $"Inicio de '{SelectedAudioClip.FileName}' recortado a {SelectedAudioClip.FormattedStartTime}.";
@@ -597,6 +696,9 @@ public class MainViewModel : INotifyPropertyChanged
         if (SelectedAudioClip == null) return;
         if (SelectedAudioClip.TrimEndAtPlayhead(CurrentPlaybackPosition))
         {
+            SelectedAudioClip.TrackIndex = GetNextAvailableTrackIndex(SelectedAudioClip.StartTime, SelectedAudioClip.Duration, SelectedAudioClip, SelectedAudioClip.TrackIndex);
+            ResolveAudioClipCollisions(SelectedAudioClip);
+            CompactAudioTracks();
             SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
             UpdateTimelineMetrics();
             StatusMessage = $"Fin de '{SelectedAudioClip.FileName}' recortado a {SelectedAudioClip.FormattedEndTime}.";
@@ -607,6 +709,9 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (SelectedAudioClip == null) return;
         SelectedAudioClip.ResetTrim();
+        SelectedAudioClip.TrackIndex = GetNextAvailableTrackIndex(SelectedAudioClip.StartTime, SelectedAudioClip.Duration, SelectedAudioClip, SelectedAudioClip.TrackIndex);
+        ResolveAudioClipCollisions(SelectedAudioClip);
+        CompactAudioTracks();
         SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
         UpdateTimelineMetrics();
         StatusMessage = $"Recorte restablecido para '{SelectedAudioClip.FileName}'.";
@@ -616,6 +721,9 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (SelectedAudioClip == null) return;
         SelectedAudioClip.NudgeInPoint(TimeSpan.FromSeconds(seconds));
+        SelectedAudioClip.TrackIndex = GetNextAvailableTrackIndex(SelectedAudioClip.StartTime, SelectedAudioClip.Duration, SelectedAudioClip, SelectedAudioClip.TrackIndex);
+        ResolveAudioClipCollisions(SelectedAudioClip);
+        CompactAudioTracks();
         SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
         UpdateTimelineMetrics();
         StatusMessage = $"Punto de entrada: {SelectedAudioClip.FormattedInPoint}.";
@@ -625,6 +733,9 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (SelectedAudioClip == null) return;
         SelectedAudioClip.NudgeDuration(TimeSpan.FromSeconds(seconds));
+        SelectedAudioClip.TrackIndex = GetNextAvailableTrackIndex(SelectedAudioClip.StartTime, SelectedAudioClip.Duration, SelectedAudioClip, SelectedAudioClip.TrackIndex);
+        ResolveAudioClipCollisions(SelectedAudioClip);
+        CompactAudioTracks();
         SelectedAudioClip.UpdateTimelineBounds(TimelinePixelsPerSecond);
         UpdateTimelineMetrics();
         StatusMessage = $"Duración activa: {SelectedAudioClip.FormattedDuration}.";
@@ -644,6 +755,16 @@ public class MainViewModel : INotifyPropertyChanged
             VideoDuration = meta.Duration;
             StartTime = TimeSpan.Zero;
             EndTime = meta.Duration;
+
+            var baseName = Path.GetFileNameWithoutExtension(meta.FilePath);
+            OutputFileName = $"{baseName}_recorte";
+            CustomOutputDirectory = null;
+            OnPropertyChanged(nameof(VideoExtension));
+            OnPropertyChanged(nameof(EffectiveOutputDirectory));
+            OnPropertyChanged(nameof(FormattedOutputFileNamePreview));
+            OnPropertyChanged(nameof(FormattedOutputLocationPreview));
+            OnPropertyChanged(nameof(CanTrimVideo));
+
             UpdateTimelineMetrics();
             StatusMessage = "Video listo para cortar o montar en la línea de tiempo.";
         }
@@ -723,21 +844,128 @@ public class MainViewModel : INotifyPropertyChanged
 
     #region Lógica de Clips de Audio
 
+    public bool ClipsOverlap(AudioClipItemViewModel a, AudioClipItemViewModel b)
+    {
+        var eps = TimeSpan.FromMilliseconds(50);
+        return a.StartTime + eps < b.EndTime && b.StartTime + eps < a.EndTime;
+    }
+
+    public int GetNextAvailableTrackIndex(TimeSpan start, TimeSpan duration, AudioClipItemViewModel? excludeClip = null, int preferredTrack = 0)
+    {
+        var end = start + duration;
+        var eps = TimeSpan.FromMilliseconds(50);
+
+        int track = Math.Max(0, preferredTrack);
+        while (true)
+        {
+            bool hasCollision = AudioClips.Any(c => 
+                c != excludeClip && 
+                c.TrackIndex == track && 
+                start + eps < c.EndTime && 
+                c.StartTime + eps < end);
+
+            if (!hasCollision)
+            {
+                return track;
+            }
+            track++;
+        }
+    }
+
+    public void ResolveAudioClipCollisions(AudioClipItemViewModel? priorityClip = null)
+    {
+        if (AudioClips.Count <= 1)
+        {
+            OnPropertyChanged(nameof(TotalAudioTracksCount));
+            OnPropertyChanged(nameof(AudioTracksHeight));
+            return;
+        }
+
+        var eps = TimeSpan.FromMilliseconds(50);
+
+        // Si hay un clip prioritario, los demás ceden ante él si colisionan en la misma pista
+        var sorted = AudioClips
+            .OrderBy(c => c == priorityClip ? 0 : 1)
+            .ThenBy(c => c.TrackIndex)
+            .ThenBy(c => c.StartTime)
+            .ToList();
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var current = sorted[i];
+
+            bool collides;
+            do
+            {
+                collides = false;
+                for (int j = 0; j < i; j++)
+                {
+                    var previous = sorted[j];
+                    if (current.TrackIndex == previous.TrackIndex &&
+                        current.StartTime + eps < previous.EndTime &&
+                        previous.StartTime + eps < current.EndTime)
+                    {
+                        // Colisión detectada: desplazar el clip a la pista de abajo
+                        current.TrackIndex = previous.TrackIndex + 1;
+                        collides = true;
+                        break;
+                    }
+                }
+            } while (collides);
+        }
+
+        OnPropertyChanged(nameof(TotalAudioTracksCount));
+        OnPropertyChanged(nameof(AudioTracksHeight));
+    }
+
+    public void CompactAudioTracks()
+    {
+        if (AudioClips.Count == 0)
+        {
+            OnPropertyChanged(nameof(TotalAudioTracksCount));
+            OnPropertyChanged(nameof(AudioTracksHeight));
+            return;
+        }
+
+        // Compactar pistas intermedias vacías para que los índices sean continuos (0, 1, 2...)
+        var usedTracks = AudioClips.Select(c => c.TrackIndex).Distinct().OrderBy(t => t).ToList();
+        for (int i = 0; i < usedTracks.Count; i++)
+        {
+            int oldTrack = usedTracks[i];
+            if (oldTrack != i)
+            {
+                foreach (var clip in AudioClips.Where(c => c.TrackIndex == oldTrack))
+                {
+                    clip.TrackIndex = i;
+                }
+            }
+        }
+
+        OnPropertyChanged(nameof(TotalAudioTracksCount));
+        OnPropertyChanged(nameof(AudioTracksHeight));
+    }
+
     public void AddAudioClip(string filePath, TimeSpan? startTime = null, string? label = null)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
 
         var time = startTime ?? CurrentPlaybackPosition;
+        var estimatedDuration = TimeSpan.FromSeconds(5);
+        var targetTrack = GetNextAvailableTrackIndex(time, estimatedDuration);
+
         var newItem = new AudioClipItemViewModel(
             index: AudioClips.Count + 1,
             filePath: filePath,
             startTime: time,
             volume: 1.0,
-            label: label);
+            label: label,
+            trackIndex: targetTrack);
 
         AudioClips.Add(newItem);
         SelectedAudioClip = newItem;
         ReindexAudioClips();
+        ResolveAudioClipCollisions(newItem);
+        CompactAudioTracks();
         NotifyAudioClipsChanged();
 
         SelectedAudioMode = AudioMode.OverlayClips;
@@ -754,6 +982,9 @@ public class MainViewModel : INotifyPropertyChanged
                     System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                     {
                         newItem.SetOriginalDuration(analysis.Value.Duration);
+                        newItem.TrackIndex = GetNextAvailableTrackIndex(newItem.StartTime, newItem.Duration, newItem, newItem.TrackIndex);
+                        ResolveAudioClipCollisions(newItem);
+                        CompactAudioTracks();
                         newItem.UpdateTimelineBounds(TimelinePixelsPerSecond);
                         UpdateTimelineMetrics();
                     });
@@ -763,7 +994,7 @@ public class MainViewModel : INotifyPropertyChanged
         });
 
         UpdateTimelineMetrics();
-        StatusMessage = $"Audio añadido en {newItem.FormattedStartTime}.";
+        StatusMessage = $"Audio añadido en {newItem.FormattedStartTime} ({newItem.TrackDisplayName}).";
     }
 
     private void RemoveAudioClip(AudioClipItemViewModel? item)
@@ -773,6 +1004,7 @@ public class MainViewModel : INotifyPropertyChanged
         item.Dispose();
         AudioClips.Remove(item);
         ReindexAudioClips();
+        CompactAudioTracks();
         NotifyAudioClipsChanged();
         StatusMessage = $"Audio quitado. Quedan {AudioClips.Count}.";
     }
@@ -784,6 +1016,7 @@ public class MainViewModel : INotifyPropertyChanged
             clip.Dispose();
         }
         AudioClips.Clear();
+        CompactAudioTracks();
         NotifyAudioClipsChanged();
         StatusMessage = "Lista de audios vacía.";
     }
@@ -798,6 +1031,8 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void NotifyAudioClipsChanged()
     {
+        OnPropertyChanged(nameof(TotalAudioTracksCount));
+        OnPropertyChanged(nameof(AudioTracksHeight));
         OnPropertyChanged(nameof(TotalAudioClipsCount));
         OnPropertyChanged(nameof(HasAudioClips));
         OnPropertyChanged(nameof(HasNoAudioClips));
@@ -881,9 +1116,94 @@ public class MainViewModel : INotifyPropertyChanged
 
     #region Ejecución de Operaciones
 
-    private async Task ExecuteTrimAsync()
+    public void BrowseSaveAs()
     {
-        if (string.IsNullOrWhiteSpace(VideoFilePath)) return;
+        if (RequestSaveFilePath == null || !HasVideo) return;
+        var ext = VideoExtension;
+        var suggested = FormattedOutputFileNamePreview;
+        var chosen = RequestSaveFilePath("Elegir nombre y carpeta para guardar corte", suggested, EffectiveOutputDirectory, ext);
+        if (!string.IsNullOrWhiteSpace(chosen))
+        {
+            OutputFileName = Path.GetFileNameWithoutExtension(chosen);
+            CustomOutputDirectory = Path.GetDirectoryName(chosen);
+            StatusMessage = $"Se guardará como '{Path.GetFileName(chosen)}'.";
+        }
+    }
+
+    public static string SuggestNextOutputFileName(string baseName)
+    {
+        if (string.IsNullOrWhiteSpace(baseName)) return "video_recorte_1";
+
+        // Caso 1: termina en dígitos (ej: "video_recorte_1" -> "video_recorte_2", "corte01" -> "corte02")
+        var matchEndDigits = System.Text.RegularExpressions.Regex.Match(baseName, @"^(.*?)(\d+)$");
+        if (matchEndDigits.Success)
+        {
+            var prefix = matchEndDigits.Groups[1].Value;
+            var digits = matchEndDigits.Groups[2].Value;
+            if (long.TryParse(digits, out long num))
+            {
+                var nextNum = (num + 1).ToString(new string('0', digits.Length));
+                return $"{prefix}{nextNum}";
+            }
+        }
+
+        // Caso 2: empieza por dígitos (ej: "01_intro" -> "02_intro", "1_modulo" -> "2_modulo")
+        var matchStartDigits = System.Text.RegularExpressions.Regex.Match(baseName, @"^(\d+)(.*)$");
+        if (matchStartDigits.Success)
+        {
+            var digits = matchStartDigits.Groups[1].Value;
+            var suffix = matchStartDigits.Groups[2].Value;
+            if (long.TryParse(digits, out long num))
+            {
+                var nextNum = (num + 1).ToString(new string('0', digits.Length));
+                return $"{nextNum}{suffix}";
+            }
+        }
+
+        // Caso 3: sin números (ej: "video_recorte" -> "video_recorte_2")
+        return $"{baseName}_2";
+    }
+
+    private async Task ExecuteTrimAsync(string? explicitDestinationPath = null)
+    {
+        if (string.IsNullOrWhiteSpace(VideoFilePath) || !CanTrim()) return;
+
+        string destPath;
+        if (!string.IsNullOrWhiteSpace(explicitDestinationPath))
+        {
+            destPath = explicitDestinationPath;
+            OutputFileName = Path.GetFileNameWithoutExtension(destPath);
+            CustomOutputDirectory = Path.GetDirectoryName(destPath);
+        }
+        else if (AskSaveLocationOnTrim && RequestSaveFilePath != null)
+        {
+            var ext = VideoExtension;
+            var suggested = FormattedOutputFileNamePreview;
+            var chosen = RequestSaveFilePath("Guardar Video Recortado", suggested, EffectiveOutputDirectory, ext);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                StatusMessage = "Guardado cancelado.";
+                return;
+            }
+            destPath = chosen;
+            OutputFileName = Path.GetFileNameWithoutExtension(chosen);
+            CustomOutputDirectory = Path.GetDirectoryName(chosen);
+        }
+        else
+        {
+            var dir = EffectiveOutputDirectory;
+            var rawName = !string.IsNullOrWhiteSpace(OutputFileName)
+                ? OutputFileName.Trim()
+                : $"{Path.GetFileNameWithoutExtension(VideoFilePath)}_recorte";
+
+            var ext = VideoExtension;
+            if (rawName.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+            {
+                rawName = rawName.Substring(0, rawName.Length - ext.Length);
+            }
+
+            destPath = GenerateSafeOutputPath(dir, rawName, ext);
+        }
 
         IsProcessing = true;
         ProgressPercentage = 0;
@@ -891,11 +1211,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var dir = Path.GetDirectoryName(VideoFilePath) ?? string.Empty;
-            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
-            var ext = Path.GetExtension(VideoFilePath);
-            var destPath = GenerateSafeOutputPath(dir, $"{fileName}_recorte", ext);
-
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
             var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
@@ -916,8 +1231,13 @@ public class MainViewModel : INotifyPropertyChanged
 
             if (trimResult.IsSuccess)
             {
-                StatusMessage = $"Corte guardado en {Path.GetFileName(destPath)}.";
+                var savedFileName = Path.GetFileName(destPath);
+                StatusMessage = $"Corte guardado en {savedFileName}.";
                 ProgressPercentage = 100;
+
+                // Sugerir el siguiente nombre organizado para el próximo corte
+                var baseName = Path.GetFileNameWithoutExtension(destPath);
+                OutputFileName = SuggestNextOutputFileName(baseName);
             }
             else
             {
@@ -934,9 +1254,34 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ExecuteExportTimelineAsync()
+    private async Task ExecuteExportTimelineAsync(string? explicitDestinationPath = null)
     {
         if (string.IsNullOrWhiteSpace(VideoFilePath)) return;
+
+        string destPath;
+        if (!string.IsNullOrWhiteSpace(explicitDestinationPath))
+        {
+            destPath = explicitDestinationPath;
+        }
+        else if (RequestSaveFilePath != null)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
+            var ext = VideoExtension;
+            var chosen = RequestSaveFilePath("Exportar Video Editado con Locuciones", $"{fileName}_montaje{ext}", EffectiveOutputDirectory, ext);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                StatusMessage = "Exportación cancelada.";
+                return;
+            }
+            destPath = chosen;
+        }
+        else
+        {
+            var dir = EffectiveOutputDirectory;
+            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
+            var ext = VideoExtension;
+            destPath = GenerateSafeOutputPath(dir, $"{fileName}_montaje_editado", ext);
+        }
 
         IsProcessing = true;
         ProgressPercentage = 0;
@@ -944,11 +1289,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var dir = Path.GetDirectoryName(VideoFilePath) ?? string.Empty;
-            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
-            var ext = Path.GetExtension(VideoFilePath);
-            var destPath = GenerateSafeOutputPath(dir, $"{fileName}_montaje_editado", ext);
-
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
             var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
@@ -987,9 +1327,34 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ExecuteMergeSegmentsAsync()
+    private async Task ExecuteMergeSegmentsAsync(string? explicitDestinationPath = null)
     {
         if (string.IsNullOrWhiteSpace(VideoFilePath) || Segments.Count == 0) return;
+
+        string destPath;
+        if (!string.IsNullOrWhiteSpace(explicitDestinationPath))
+        {
+            destPath = explicitDestinationPath;
+        }
+        else if (RequestSaveFilePath != null)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
+            var ext = VideoExtension;
+            var chosen = RequestSaveFilePath("Exportar Video Final (Unión de Cortes)", $"{fileName}_cortes_unidos{ext}", EffectiveOutputDirectory, ext);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                StatusMessage = "Exportación cancelada.";
+                return;
+            }
+            destPath = chosen;
+        }
+        else
+        {
+            var dir = EffectiveOutputDirectory;
+            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
+            var ext = VideoExtension;
+            destPath = GenerateSafeOutputPath(dir, $"{fileName}_segmentos_unidos", ext);
+        }
 
         IsProcessing = true;
         ProgressPercentage = 0;
@@ -997,11 +1362,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var dir = Path.GetDirectoryName(VideoFilePath) ?? string.Empty;
-            var fileName = Path.GetFileNameWithoutExtension(VideoFilePath);
-            var ext = Path.GetExtension(VideoFilePath);
-            var destPath = GenerateSafeOutputPath(dir, $"{fileName}_segmentos_unidos", ext);
-
             var segmentPairs = Segments.Select(s => new TimeSpanPairDto(s.Start, s.End, s.DisplayName)).ToList();
             var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
 
@@ -1299,9 +1659,34 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ExecuteChangeSpeedAsync()
+    private async Task ExecuteChangeSpeedAsync(string? explicitDestinationPath = null)
     {
         if (!CanChangeSpeed() || string.IsNullOrWhiteSpace(SpeedVideoFilePath)) return;
+
+        var multSuffix = SpeedMultiplier.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', '_');
+        var fileName = Path.GetFileNameWithoutExtension(SpeedVideoFilePath);
+        var ext = Path.GetExtension(SpeedVideoFilePath);
+        var dir = Path.GetDirectoryName(SpeedVideoFilePath) ?? string.Empty;
+
+        string destPath;
+        if (!string.IsNullOrWhiteSpace(explicitDestinationPath))
+        {
+            destPath = explicitDestinationPath;
+        }
+        else if (RequestSaveFilePath != null)
+        {
+            var chosen = RequestSaveFilePath("Guardar Video Acelerado", $"{fileName}_{multSuffix}x{ext}", dir, ext);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                StatusMessage = "Aceleración cancelada.";
+                return;
+            }
+            destPath = chosen;
+        }
+        else
+        {
+            destPath = GenerateSafeOutputPath(dir, $"{fileName}_{multSuffix}x", ext);
+        }
 
         IsProcessing = true;
         ProgressPercentage = 0;
@@ -1309,12 +1694,6 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var dir = Path.GetDirectoryName(SpeedVideoFilePath) ?? string.Empty;
-            var fileName = Path.GetFileNameWithoutExtension(SpeedVideoFilePath);
-            var ext = Path.GetExtension(SpeedVideoFilePath);
-            var multSuffix = SpeedMultiplier.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', '_');
-            var destPath = GenerateSafeOutputPath(dir, $"{fileName}_{multSuffix}x", ext);
-
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
             var request = new ChangeSpeedRequestDto(
