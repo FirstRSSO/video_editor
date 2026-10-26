@@ -28,7 +28,7 @@ public class FFmpegIntegrationTests : IDisposable
         _locator = new FFmpegBinaryLocator();
         _runner = new FFmpegProcessRunner();
         _analyzer = new FFmpegMediaAnalyzer(_locator, _runner);
-        _trimmer = new FFmpegVideoTrimmer(_locator, _runner);
+        _trimmer = new FFmpegVideoTrimmer(_locator, _runner, _analyzer);
         _muxer = new FFmpegAudioMuxer(_locator, _runner);
         _concatenator = new FFmpegVideoConcatenator(_locator, _runner);
         _speedChanger = new FFmpegVideoSpeedChanger(_locator, _runner, _analyzer);
@@ -124,6 +124,41 @@ public class FFmpegIntegrationTests : IDisposable
         var metaResult = await _analyzer.AnalyzeAsync(outputPath);
         Assert.True(metaResult.IsSuccess);
         Assert.True(metaResult.Value!.Duration.TotalSeconds > 1.5 && metaResult.Value!.Duration.TotalSeconds <= 2.5);
+    }
+
+    [Fact]
+    public async Task VideoTrimmer_ShouldCutWithKeyframeSnap()
+    {
+        var outputPath = Path.Combine(_tempDirectory, "keyframe_snapped.mp4");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(1.2), TimeSpan.FromSeconds(3.5));
+        var job = new CutJob(_testVideoPath, timeRange, outputPath, CutStrategy.KeyframeSnap, AudioTrackConfig.KeepOriginal());
+
+        var result = await _trimmer.TrimAsync(job);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputPath));
+
+        var metaResult = await _analyzer.AnalyzeAsync(outputPath);
+        Assert.True(metaResult.IsSuccess);
+        Assert.True(metaResult.Value!.Duration.TotalSeconds >= 1.0);
+    }
+
+    [Fact]
+    public async Task VideoTrimmer_ShouldCutWithSmartCut()
+    {
+        var outputPath = Path.Combine(_tempDirectory, "smart_cut.mp4");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(0.7), TimeSpan.FromSeconds(3.8));
+        var job = new CutJob(_testVideoPath, timeRange, outputPath, CutStrategy.SmartCut, AudioTrackConfig.KeepOriginal());
+
+        var result = await _trimmer.TrimAsync(job);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputPath));
+
+        var metaResult = await _analyzer.AnalyzeAsync(outputPath);
+        Assert.True(metaResult.IsSuccess);
+        Assert.True(metaResult.Value!.Duration.TotalSeconds >= 2.8 && metaResult.Value!.Duration.TotalSeconds <= 3.4,
+            $"Expected ~3.1s, actual: {metaResult.Value!.Duration.TotalSeconds}");
     }
 
     [Fact]

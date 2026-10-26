@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
@@ -319,8 +320,8 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         set => FadeOut = TimeSpan.FromSeconds(Math.Max(0.0, value));
     }
 
-    public string FormattedFadeIn => $"{_fadeIn.TotalSeconds:0.##}s";
-    public string FormattedFadeOut => $"{_fadeOut.TotalSeconds:0.##}s";
+    public string FormattedFadeIn => $"{_fadeIn.TotalSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s";
+    public string FormattedFadeOut => $"{_fadeOut.TotalSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s";
     public bool HasFades => _fadeIn > TimeSpan.Zero || _fadeOut > TimeSpan.Zero;
     public string FormattedFadeSummary => HasFades
         ? $"Fundidos: In {FormattedFadeIn} · Out {FormattedFadeOut}"

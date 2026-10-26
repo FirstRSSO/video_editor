@@ -40,6 +40,50 @@ public class MainViewModel : INotifyPropertyChanged
     private string _statusMessage = "Abre un video o suelta uno sobre la ventana.";
 
     private AudioMode _selectedAudioMode = AudioMode.KeepOriginal;
+    private CutStrategy _selectedCutStrategy = CutStrategy.LosslessStreamCopy;
+
+    public CutStrategy SelectedCutStrategy
+    {
+        get => _selectedCutStrategy;
+        set
+        {
+            if (_selectedCutStrategy != value)
+            {
+                _selectedCutStrategy = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsLosslessStrategy));
+                OnPropertyChanged(nameof(IsSmartCutStrategy));
+                OnPropertyChanged(nameof(IsKeyframeSnapStrategy));
+                OnPropertyChanged(nameof(StrategyDescription));
+            }
+        }
+    }
+
+    public bool IsLosslessStrategy
+    {
+        get => _selectedCutStrategy == CutStrategy.LosslessStreamCopy;
+        set { if (value) SelectedCutStrategy = CutStrategy.LosslessStreamCopy; }
+    }
+
+    public bool IsSmartCutStrategy
+    {
+        get => _selectedCutStrategy == CutStrategy.SmartCut;
+        set { if (value) SelectedCutStrategy = CutStrategy.SmartCut; }
+    }
+
+    public bool IsKeyframeSnapStrategy
+    {
+        get => _selectedCutStrategy == CutStrategy.KeyframeSnap;
+        set { if (value) SelectedCutStrategy = CutStrategy.KeyframeSnap; }
+    }
+
+    public string StrategyDescription => SelectedCutStrategy switch
+    {
+        CutStrategy.LosslessStreamCopy => "Stream Copy: Instantáneo, sin recodificar.",
+        CutStrategy.SmartCut => "Smart Cut: Precisión quirúrgica exacta al fotograma.",
+        CutStrategy.KeyframeSnap => "Keyframe Snap: Ajuste automático a I-Frames.",
+        _ => "Stream Copy"
+    };
     private double _mainVolume = 1.0;
     private double _backgroundVolume = 0.3;
     private SidebarViewMode _currentSidebarView = SidebarViewMode.Segments;
@@ -1228,7 +1272,7 @@ public class MainViewModel : INotifyPropertyChanged
                 StartTime: StartTime,
                 EndTime: EndTime,
                 DestinationVideoPath: destPath,
-                Strategy: CutStrategy.LosslessStreamCopy,
+                Strategy: SelectedCutStrategy,
                 AudioMode: SelectedAudioMode,
                 ExternalAudioPath: AudioFilePath,
                 MainVolume: MainVolume,
@@ -1377,7 +1421,7 @@ public class MainViewModel : INotifyPropertyChanged
                 StartTime: TimeSpan.Zero,
                 EndTime: VideoDuration,
                 DestinationVideoPath: destPath,
-                Strategy: CutStrategy.LosslessStreamCopy,
+                Strategy: SelectedCutStrategy,
                 AudioMode: AudioMode.OverlayClips,
                 ExternalAudioPath: null,
                 MainVolume: MainVolume,
