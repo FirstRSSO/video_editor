@@ -1619,7 +1619,7 @@ public partial class MainWindow : Window
             {
                 Margin = new Thickness(4, 4, 4, 4),
                 Cursor = Cursors.Hand,
-                ToolTip = $"{clip.FileName}\nInicio: {clip.FormattedStartTime}\nDuración: {clip.FormattedDuration}\n{clip.FormattedTrimSummary}\n(Arrastra para mover en la línea de tiempo)"
+                ToolTip = $"{clip.FileName}\nInicio: {clip.FormattedStartTime}\nDuración: {clip.FormattedDuration}\n{clip.FormattedTrimSummary}\n{clip.FormattedFadeSummary}\n(Arrastra para mover en la línea de tiempo)"
             };
             contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             contentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1665,14 +1665,15 @@ public partial class MainWindow : Window
             Grid.SetRow(topPanel, 0);
             contentGrid.Children.Add(topPanel);
 
+            var statusSuffix = (clip.IsTrimmed && clip.HasFades) ? " • corte + fade" : clip.IsTrimmed ? " • corte" : clip.HasFades ? " • fade" : "";
             var timeText = new TextBlock
             {
                 Text = clip.IsTrimmed 
-                    ? $"{clip.FormattedStartTime} ({clip.FormattedDuration} • corte)" 
-                    : $"{clip.FormattedStartTime} ({clip.FormattedDuration})",
+                    ? $"{clip.FormattedStartTime} ({clip.FormattedDuration}{statusSuffix})" 
+                    : $"{clip.FormattedStartTime} ({clip.FormattedDuration}{statusSuffix})",
                 FontFamily = monoFont,
                 FontSize = 9,
-                Foreground = clip.IsTrimmed ? brassLitBrush : slateBrush,
+                Foreground = (clip.IsTrimmed || clip.HasFades) ? brassLitBrush : slateBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetRow(timeText, 1);
@@ -1706,7 +1707,9 @@ public partial class MainWindow : Window
                                nameof(AudioClipItemViewModel.OriginalDuration) or
                                nameof(AudioClipItemViewModel.IsSelected) or
                                nameof(AudioClipItemViewModel.IsTrimmed) or
-                               nameof(AudioClipItemViewModel.TrackIndex))
+                               nameof(AudioClipItemViewModel.TrackIndex) or
+                               nameof(AudioClipItemViewModel.FadeIn) or
+                               nameof(AudioClipItemViewModel.FadeOut))
         {
             Dispatcher.InvokeAsync(UpdateTimelineDisplay);
         }

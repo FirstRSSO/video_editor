@@ -26,6 +26,8 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
     private TimeSpan _duration = TimeSpan.FromSeconds(5);
     private TimeSpan _originalDuration = TimeSpan.Zero;
     private bool _hasExplicitDuration = false;
+    private TimeSpan _fadeIn = TimeSpan.Zero;
+    private TimeSpan _fadeOut = TimeSpan.Zero;
 
     private bool _isSelected;
     private double _timelineLeft;
@@ -58,7 +60,9 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         TimeSpan? duration = null,
         TimeSpan? inPoint = null,
         TimeSpan? originalDuration = null,
-        int trackIndex = 0)
+        int trackIndex = 0,
+        TimeSpan? fadeIn = null,
+        TimeSpan? fadeOut = null)
     {
         _index = index;
         _filePath = filePath ?? throw new ArgumentNullException(nameof(filePath));
@@ -66,6 +70,8 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
         _volume = Math.Clamp(volume, 0.0, 2.0);
         _label = label;
         _trackIndex = Math.Max(0, trackIndex);
+        _fadeIn = fadeIn.HasValue && fadeIn.Value > TimeSpan.Zero ? fadeIn.Value : TimeSpan.Zero;
+        _fadeOut = fadeOut.HasValue && fadeOut.Value > TimeSpan.Zero ? fadeOut.Value : TimeSpan.Zero;
 
         if (inPoint.HasValue && inPoint.Value >= TimeSpan.Zero)
         {
@@ -264,6 +270,61 @@ public class AudioClipItemViewModel : INotifyPropertyChanged, IDisposable
     public string FormattedTrimSummary => IsTrimmed
         ? $"Recorte: {FormattedInPoint} → {TimeRange.FormatFFmpegTime(InPoint + Duration)} (Total archivo: {FormattedOriginalDuration})"
         : $"Completo: {FormattedOriginalDuration}";
+
+    public TimeSpan FadeIn
+    {
+        get => _fadeIn;
+        set
+        {
+            var clamped = value < TimeSpan.Zero ? TimeSpan.Zero : value;
+            if (_fadeIn != clamped)
+            {
+                _fadeIn = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FadeInSeconds));
+                OnPropertyChanged(nameof(FormattedFadeIn));
+                OnPropertyChanged(nameof(HasFades));
+                OnPropertyChanged(nameof(FormattedFadeSummary));
+            }
+        }
+    }
+
+    public double FadeInSeconds
+    {
+        get => _fadeIn.TotalSeconds;
+        set => FadeIn = TimeSpan.FromSeconds(Math.Max(0.0, value));
+    }
+
+    public TimeSpan FadeOut
+    {
+        get => _fadeOut;
+        set
+        {
+            var clamped = value < TimeSpan.Zero ? TimeSpan.Zero : value;
+            if (_fadeOut != clamped)
+            {
+                _fadeOut = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FadeOutSeconds));
+                OnPropertyChanged(nameof(FormattedFadeOut));
+                OnPropertyChanged(nameof(HasFades));
+                OnPropertyChanged(nameof(FormattedFadeSummary));
+            }
+        }
+    }
+
+    public double FadeOutSeconds
+    {
+        get => _fadeOut.TotalSeconds;
+        set => FadeOut = TimeSpan.FromSeconds(Math.Max(0.0, value));
+    }
+
+    public string FormattedFadeIn => $"{_fadeIn.TotalSeconds:0.##}s";
+    public string FormattedFadeOut => $"{_fadeOut.TotalSeconds:0.##}s";
+    public bool HasFades => _fadeIn > TimeSpan.Zero || _fadeOut > TimeSpan.Zero;
+    public string FormattedFadeSummary => HasFades
+        ? $"Fundidos: In {FormattedFadeIn} · Out {FormattedFadeOut}"
+        : "Sin fundidos";
 
     public bool IsSelected
     {

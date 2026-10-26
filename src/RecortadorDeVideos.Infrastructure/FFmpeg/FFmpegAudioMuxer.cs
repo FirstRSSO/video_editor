@@ -120,6 +120,23 @@ public class FFmpegAudioMuxer : IAudioMuxer
 
                     filterChain.Add($"volume={vol}");
 
+                    // Fundido de entrada (Fade In)
+                    if (clip.FadeIn > TimeSpan.Zero)
+                    {
+                        var fadeInSec = clip.FadeIn.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                        filterChain.Add($"afade=t=in:ss=0:d={fadeInSec}");
+                    }
+
+                    // Fundido de salida (Fade Out)
+                    if (clip.FadeOut > TimeSpan.Zero && effectiveDuration.HasValue && effectiveDuration.Value > TimeSpan.Zero)
+                    {
+                        var fadeOutDur = clip.FadeOut < effectiveDuration.Value ? clip.FadeOut : effectiveDuration.Value;
+                        var fadeOutStart = effectiveDuration.Value - fadeOutDur;
+                        var stSec = fadeOutStart.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                        var dSec = fadeOutDur.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture);
+                        filterChain.Add($"afade=t=out:st={stSec}:d={dSec}");
+                    }
+
                     if (delayMs > 0)
                     {
                         filterChain.Add($"adelay={delayMs}:all=1");

@@ -73,7 +73,7 @@ public class MergeVideosUseCase : IMergeVideosUseCase
             if (request.AudioMode == AudioMode.OverlayClips || (request.AudioClips != null && request.AudioClips.Count > 0))
             {
                 var domainClips = (request.AudioClips ?? Array.Empty<AudioOverlayClipDto>())
-                    .Select(c => new AudioOverlayClip(c.FilePath, c.StartTime, c.Volume, c.Label, c.InPoint, c.Duration))
+                    .Select(c => new AudioOverlayClip(c.FilePath, c.StartTime, c.Volume, c.Label, c.InPoint, c.Duration, c.FadeIn, c.FadeOut))
                     .ToList();
 
                 if (domainClips.Count == 0)

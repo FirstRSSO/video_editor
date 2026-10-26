@@ -123,20 +123,28 @@ A continuación se presentan las alternativas de desarrollo:
     *   Barra de progreso en tiempo real y registro de mensajes de estado.
     *   41 pruebas automatizadas pasando al 100% (23 de Dominio, 7 de Aplicación, 11 de Integración con FFmpeg).
 
-### Fase 4: Funcionalidades Avanzadas 🚀 (Fase Activa)
-1.  **Efectos de audio:** Fundidos de entrada/salida (*Fade In* / *Fade Out*) configurables por clip de audio.
-2.  **Extracción de audio independiente:** Guardar únicamente la pista de audio (MP3/AAC/WAV) del video o fragmento seleccionado.
-3.  **Smart Cut:** Re-codificar únicamente los límites entre cortes para precisión a nivel de fotograma individual sin desincronización de GOP.
-4.  **Pruebas unitarias de ViewModels:** Cobertura de pruebas para la lógica de colisiones de pistas y línea de tiempo.
+### Fase 4: Funcionalidades Avanzadas 🚀 (En Progreso)
+1.  **Efectos de audio (Fade In / Fade Out) ✅:**
+    *   Soporte en Dominio (`AudioOverlayClip.FadeIn`, `FadeOut`), Aplicación (`AudioOverlayClipDto`) e Infraestructura con filtros `afade` de FFmpeg.
+    *   Controles dedicados en la barra de edición y cálculo visual en los bloques de la línea de tiempo.
+    *   Pruebas unitarias y de integración pasando al 100%.
+2.  **Extracción de audio independiente ✅:**
+    *   Nuevo caso de uso `ExtractAudioUseCase` y servicio `FFmpegAudioExtractor` (`IAudioExtractor`).
+    *   Exportación instantánea del fragmento seleccionado a MP3, WAV, AAC o M4A sin recodificar video.
+    *   Botones de acceso rápido "Extraer audio (MP3)" y "WAV" en la pestaña de recorte.
+    *   Pruebas unitarias y de integración verificadas contra FFmpeg real.
+3.  **Smart Cut:**
+    *   Re-codificar únicamente los límites entre cortes para precisión a nivel de fotograma individual sin desincronización de GOP.
+4.  **Pruebas unitarias de ViewModels:**
+    *   Cobertura de pruebas para la lógica de colisiones de pistas y línea de tiempo.
+5.  **Suite de Pruebas:**
+    *   **50 pruebas automatizadas pasando al 100%** (26 Dominio, 10 Aplicación, 14 Integración con FFmpeg).
 
 ---
 
 ## 5. Estado Actual del Proyecto y Próximo Paso
 
 *   **Fase 1:** ✅ Completada.
-*   **Fase 2:** ✅ Completada y testeada.
-*   **Fase 3:** ✅ Completada (UI completa con corte, edición multipista, unión, aceleración y feedback).
-*   **Fase activa para continuar:** 👉 **Fase 4 (Funcionalidades Avanzadas)**:
-    *   Implementar fundidos (*Fade In* / *Fade Out*) en clips de audio.
-    *   Implementar extracción independiente de pistas de audio.
-    *   Implementar *Smart Cut* y pruebas complementarias.
+*   **Fase 2:** ✅ Completada.
+*   **Fase 3:** ✅ Completada.
+*   **Fase 4:** 🚀 En progreso (Fundidos Fade In/Out y Extracción de audio completados y testeados al 100%; Smart Cut como siguiente paso).

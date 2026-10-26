@@ -86,4 +86,35 @@ public class AudioOverlayClipTests
         Assert.Throws<ArgumentOutOfRangeException>(() => 
             new AudioOverlayClip("voice.mp3", TimeSpan.Zero, 1.0, null, duration: TimeSpan.Zero));
     }
+
+    [Fact]
+    public void Create_WithFades_ShouldSucceed()
+    {
+        var clip = new AudioOverlayClip(
+            "voice.mp3",
+            TimeSpan.FromSeconds(2),
+            1.0,
+            "Intro with fades",
+            inPoint: TimeSpan.Zero,
+            duration: TimeSpan.FromSeconds(10),
+            fadeIn: TimeSpan.FromSeconds(1.5),
+            fadeOut: TimeSpan.FromSeconds(2.0));
+
+        Assert.Equal(TimeSpan.FromSeconds(1.5), clip.FadeIn);
+        Assert.Equal(TimeSpan.FromSeconds(2.0), clip.FadeOut);
+    }
+
+    [Fact]
+    public void Create_NegativeFadeIn_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new AudioOverlayClip("voice.mp3", TimeSpan.Zero, 1.0, null, fadeIn: TimeSpan.FromSeconds(-0.5)));
+    }
+
+    [Fact]
+    public void Create_NegativeFadeOut_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new AudioOverlayClip("voice.mp3", TimeSpan.Zero, 1.0, null, fadeOut: TimeSpan.FromSeconds(-0.5)));
+    }
 }

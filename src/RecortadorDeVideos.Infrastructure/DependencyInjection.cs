@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RecortadorDeVideos.Application.Contracts;
 using RecortadorDeVideos.Application.UseCases.AnalyzeVideo;
 using RecortadorDeVideos.Application.UseCases.ChangeSpeed;
+using RecortadorDeVideos.Application.UseCases.ExtractAudio;
 using RecortadorDeVideos.Application.UseCases.MergeVideos;
 using RecortadorDeVideos.Application.UseCases.TrimVideo;
 using RecortadorDeVideos.Infrastructure.FFmpeg;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddTransient<IMediaAnalyzer, FFmpegMediaAnalyzer>();
         services.AddTransient<IVideoTrimmer, FFmpegVideoTrimmer>();
         services.AddTransient<IAudioMuxer, FFmpegAudioMuxer>();
+        services.AddTransient<IAudioExtractor, FFmpegAudioExtractor>();
 
         services.AddTransient<IVideoConcatenator, FFmpegVideoConcatenator>();
         services.AddTransient<IVideoSpeedChanger, FFmpegVideoSpeedChanger>();
@@ -29,6 +31,7 @@ public static class DependencyInjection
         // Aplicación - Casos de Uso
         services.AddTransient<IAnalyzeVideoUseCase, AnalyzeVideoUseCase>();
         services.AddTransient<ITrimVideoUseCase, TrimVideoUseCase>();
+        services.AddTransient<IExtractAudioUseCase, ExtractAudioUseCase>();
         services.AddTransient<IMergeVideosUseCase, MergeVideosUseCase>();
         services.AddTransient<IChangeSpeedUseCase, ChangeSpeedUseCase>();
 

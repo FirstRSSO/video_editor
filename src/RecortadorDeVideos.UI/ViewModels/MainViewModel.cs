@@ -7,6 +7,7 @@ using System.Globalization;
 using RecortadorDeVideos.Application.Models;
 using RecortadorDeVideos.Application.UseCases.AnalyzeVideo;
 using RecortadorDeVideos.Application.UseCases.ChangeSpeed;
+using RecortadorDeVideos.Application.UseCases.ExtractAudio;
 using RecortadorDeVideos.Application.UseCases.MergeVideos;
 using RecortadorDeVideos.Application.UseCases.TrimVideo;
 using RecortadorDeVideos.Domain.Enums;
@@ -26,6 +27,7 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly ITrimVideoUseCase _trimVideoUseCase;
     private readonly IMergeVideosUseCase _mergeVideosUseCase;
     private readonly IChangeSpeedUseCase _changeSpeedUseCase;
+    private readonly IExtractAudioUseCase _extractAudioUseCase;
 
     private string? _videoFilePath;
     private string? _audioFilePath;
@@ -52,17 +54,21 @@ public class MainViewModel : INotifyPropertyChanged
         IAnalyzeVideoUseCase analyzeVideoUseCase,
         ITrimVideoUseCase trimVideoUseCase,
         IMergeVideosUseCase mergeVideosUseCase,
-        IChangeSpeedUseCase changeSpeedUseCase)
+        IChangeSpeedUseCase changeSpeedUseCase,
+        IExtractAudioUseCase extractAudioUseCase)
     {
         _analyzeVideoUseCase = analyzeVideoUseCase ?? throw new ArgumentNullException(nameof(analyzeVideoUseCase));
         _trimVideoUseCase = trimVideoUseCase ?? throw new ArgumentNullException(nameof(trimVideoUseCase));
         _mergeVideosUseCase = mergeVideosUseCase ?? throw new ArgumentNullException(nameof(mergeVideosUseCase));
         _changeSpeedUseCase = changeSpeedUseCase ?? throw new ArgumentNullException(nameof(changeSpeedUseCase));
+        _extractAudioUseCase = extractAudioUseCase ?? throw new ArgumentNullException(nameof(extractAudioUseCase));
 
         // Comandos de corte individual y marcadores
         TrimCommand = new RelayCommand(async () => await ExecuteTrimAsync(), () => CanTrim());
         SetStartToCurrentCommand = new RelayCommand(() => StartTime = CurrentPlaybackPosition, () => HasVideo);
         SetEndToCurrentCommand = new RelayCommand(() => EndTime = CurrentPlaybackPosition, () => HasVideo);
+        ExtractAudioMp3Command = new RelayCommand(async () => await ExecuteExtractAudioAsync(AudioExportFormat.Mp3), () => CanTrim());
+        ExtractAudioWavCommand = new RelayCommand(async () => await ExecuteExtractAudioAsync(AudioExportFormat.Wav), () => CanTrim());
 
         // Comandos de segmentos múltiples del video
         AddCurrentRangeToSegmentsCommand = new RelayCommand(AddCurrentRangeToSegments, () => CanAddSegment());
@@ -456,6 +462,8 @@ public class MainViewModel : INotifyPropertyChanged
     #region Comandos
 
     public ICommand TrimCommand { get; }
+    public ICommand ExtractAudioMp3Command { get; }
+    public ICommand ExtractAudioWavCommand { get; }
     public ICommand BrowseSaveAsCommand { get; }
     public ICommand SetStartToCurrentCommand { get; }
     public ICommand SetEndToCurrentCommand { get; }
@@ -1213,7 +1221,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration, c.FadeIn, c.FadeOut)).ToList();
 
             var request = new TrimVideoRequestDto(
                 SourceVideoPath: VideoFilePath,
@@ -1247,6 +1255,77 @@ public class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"No se pudo cortar: {ex.Message}";
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private async Task ExecuteExtractAudioAsync(AudioExportFormat format)
+    {
+        if (!CanTrim() || string.IsNullOrWhiteSpace(VideoFilePath)) return;
+
+        var ext = format switch
+        {
+            AudioExportFormat.Mp3 => ".mp3",
+            AudioExportFormat.Wav => ".wav",
+            AudioExportFormat.Aac => ".aac",
+            AudioExportFormat.M4a => ".m4a",
+            _ => ".mp3"
+        };
+
+        var baseName = !string.IsNullOrWhiteSpace(OutputFileName)
+            ? OutputFileName.Trim()
+            : $"{Path.GetFileNameWithoutExtension(VideoFilePath)}_audio";
+
+        string destPath;
+        if (RequestSaveFilePath != null)
+        {
+            var suggested = $"{baseName}{ext}";
+            var chosen = RequestSaveFilePath($"Extraer Audio ({format})", suggested, EffectiveOutputDirectory, ext);
+            if (string.IsNullOrWhiteSpace(chosen))
+            {
+                StatusMessage = "Extracción de audio cancelada.";
+                return;
+            }
+            destPath = chosen;
+        }
+        else
+        {
+            destPath = GenerateSafeOutputPath(EffectiveOutputDirectory, baseName, ext);
+        }
+
+        IsProcessing = true;
+        ProgressPercentage = 0;
+        StatusMessage = $"Extrayendo pista de audio a formato {format}…";
+
+        try
+        {
+            var progressReporter = new Progress<double>(p => ProgressPercentage = p);
+
+            var request = new ExtractAudioRequestDto(
+                SourceVideoPath: VideoFilePath,
+                StartTime: StartTime,
+                EndTime: EndTime,
+                DestinationAudioPath: destPath,
+                Format: format);
+
+            var result = await _extractAudioUseCase.ExecuteAsync(request, progressReporter);
+            if (result.IsSuccess)
+            {
+                var mb = result.Value.OutputSizeBytes / (1024.0 * 1024.0);
+                StatusMessage = $"Audio extraído con éxito ({format.ToString().ToUpper()}): {Path.GetFileName(destPath)} ({mb:F2} MB)";
+                ProgressPercentage = 100;
+            }
+            else
+            {
+                StatusMessage = $"Error al extraer audio: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Excepción al extraer audio: {ex.Message}";
         }
         finally
         {
@@ -1291,7 +1370,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             var progressReporter = new Progress<double>(p => ProgressPercentage = p);
 
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration, c.FadeIn, c.FadeOut)).ToList();
 
             var request = new TrimVideoRequestDto(
                 SourceVideoPath: VideoFilePath,
@@ -1363,7 +1442,7 @@ public class MainViewModel : INotifyPropertyChanged
         try
         {
             var segmentPairs = Segments.Select(s => new TimeSpanPairDto(s.Start, s.End, s.DisplayName)).ToList();
-            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration)).ToList();
+            var clipDtos = AudioClips.Select(c => new AudioOverlayClipDto(c.FilePath, c.StartTime, c.Volume, c.DisplayName, c.InPoint, c.Duration, c.FadeIn, c.FadeOut)).ToList();
 
             var request = new MergeSegmentsRequestDto(
                 SourceVideoPath: VideoFilePath,

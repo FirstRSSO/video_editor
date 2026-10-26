@@ -11,6 +11,8 @@ public sealed record AudioOverlayClip
     public string? Label { get; }
     public TimeSpan InPoint { get; }
     public TimeSpan? Duration { get; }
+    public TimeSpan FadeIn { get; }
+    public TimeSpan FadeOut { get; }
 
     public AudioOverlayClip(
         string filePath, 
@@ -18,7 +20,9 @@ public sealed record AudioOverlayClip
         double volume = 1.0, 
         string? label = null,
         TimeSpan? inPoint = null,
-        TimeSpan? duration = null)
+        TimeSpan? duration = null,
+        TimeSpan? fadeIn = null,
+        TimeSpan? fadeOut = null)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("La ruta del clip de audio no puede estar vacía.", nameof(filePath));
@@ -35,11 +39,19 @@ public sealed record AudioOverlayClip
         if (duration.HasValue && duration.Value <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(duration), "La duración debe ser mayor que cero.");
 
+        if (fadeIn.HasValue && fadeIn.Value < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(fadeIn), "El tiempo de fundido de entrada (fade in) no puede ser negativo.");
+
+        if (fadeOut.HasValue && fadeOut.Value < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(fadeOut), "El tiempo de fundido de salida (fade out) no puede ser negativo.");
+
         FilePath = filePath;
         StartTime = startTime;
         Volume = volume;
         Label = label;
         InPoint = inPoint ?? TimeSpan.Zero;
         Duration = duration;
+        FadeIn = fadeIn ?? TimeSpan.Zero;
+        FadeOut = fadeOut ?? TimeSpan.Zero;
     }
 }

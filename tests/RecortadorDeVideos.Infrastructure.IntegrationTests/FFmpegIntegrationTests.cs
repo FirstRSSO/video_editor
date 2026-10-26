@@ -18,6 +18,7 @@ public class FFmpegIntegrationTests : IDisposable
     private readonly FFmpegAudioMuxer _muxer;
     private readonly FFmpegVideoConcatenator _concatenator;
     private readonly FFmpegVideoSpeedChanger _speedChanger;
+    private readonly FFmpegAudioExtractor _audioExtractor;
     private readonly string _tempDirectory;
     private readonly string _testVideoPath;
     private readonly string _testAudioPath;
@@ -31,6 +32,7 @@ public class FFmpegIntegrationTests : IDisposable
         _muxer = new FFmpegAudioMuxer(_locator, _runner);
         _concatenator = new FFmpegVideoConcatenator(_locator, _runner);
         _speedChanger = new FFmpegVideoSpeedChanger(_locator, _runner, _analyzer);
+        _audioExtractor = new FFmpegAudioExtractor(_locator, _runner);
 
         _tempDirectory = Path.Combine(Path.GetTempPath(), "RecortadorTests_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDirectory);
@@ -278,6 +280,61 @@ public class FFmpegIntegrationTests : IDisposable
         var meta = await _analyzer.AnalyzeAsync(speedOutput);
         Assert.True(meta.IsSuccess);
         Assert.True(string.IsNullOrWhiteSpace(meta.Value!.AudioCodec), "Expected no audio track.");
+    }
+
+    [Fact]
+    public async Task AudioExtractor_ShouldExtractMp3Successfully()
+    {
+        var outputMp3 = Path.Combine(_tempDirectory, "extracted.mp3");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(4));
+
+        var result = await _audioExtractor.ExtractAudioAsync(_testVideoPath, timeRange, outputMp3, AudioExportFormat.Mp3);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputMp3));
+
+        var meta = await _analyzer.AnalyzeAsync(outputMp3);
+        Assert.True(meta.IsSuccess);
+        Assert.Equal("mp3", meta.Value!.AudioCodec);
+        Assert.True(meta.Value!.Duration.TotalSeconds >= 2.5 && meta.Value!.Duration.TotalSeconds <= 3.5);
+    }
+
+    [Fact]
+    public async Task AudioExtractor_ShouldExtractWavSuccessfully()
+    {
+        var outputWav = Path.Combine(_tempDirectory, "extracted.wav");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(3));
+
+        var result = await _audioExtractor.ExtractAudioAsync(_testVideoPath, timeRange, outputWav, AudioExportFormat.Wav);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputWav));
+        Assert.True(new FileInfo(outputWav).Length > 0);
+    }
+
+    [Fact]
+    public async Task AudioMuxer_ShouldApplyFadeInAndFadeOutSuccessfully()
+    {
+        var outputPath = Path.Combine(_tempDirectory, "faded_audio.mp4");
+        var timeRange = TimeRange.Create(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(4));
+        var clips = new List<AudioOverlayClip>
+        {
+            new(_testAudioPath, TimeSpan.FromSeconds(0.5), 1.0, "Fade Clip", 
+                inPoint: TimeSpan.Zero, 
+                duration: TimeSpan.FromSeconds(3), 
+                fadeIn: TimeSpan.FromSeconds(0.8), 
+                fadeOut: TimeSpan.FromSeconds(0.8))
+        };
+        var audioConfig = AudioTrackConfig.WithClips(clips, keepOriginalAudio: false);
+
+        var result = await _muxer.ProcessAudioAsync(_testVideoPath, timeRange, audioConfig, outputPath);
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.True(File.Exists(outputPath));
+
+        var meta = await _analyzer.AnalyzeAsync(outputPath);
+        Assert.True(meta.IsSuccess);
+        Assert.Equal("aac", meta.Value!.AudioCodec);
     }
 
     public void Dispose()

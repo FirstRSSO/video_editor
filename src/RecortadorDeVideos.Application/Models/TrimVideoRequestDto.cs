@@ -11,7 +11,9 @@ public sealed record AudioOverlayClipDto(
     double Volume = 1.0,
     string? Label = null,
     TimeSpan? InPoint = null,
-    TimeSpan? Duration = null);
+    TimeSpan? Duration = null,
+    TimeSpan? FadeIn = null,
+    TimeSpan? FadeOut = null);
 
 public sealed record TrimVideoRequestDto(
     string SourceVideoPath,
